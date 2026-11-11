@@ -50,12 +50,18 @@ await step('free', async () => {
 });
 
 await step('humble', async () => {
-  let m;
+  let m, html = '';
   for (let i = 0; i < 3 && !m; i++) {
     if (i) await sleep(4000);
-    m = (await get('https://www.humblebundle.com/games', 'text').catch(() => '')).match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/);
+    html = await get('https://www.humblebundle.com/games', 'text').catch(e => (console.error('humble landing', e.message), ''));
+    // La etiqueta puede cambiar de id: vale cualquier script JSON que traiga product_url
+    m = html.match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/)
+      || [...html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)].find(x => x[1].includes('product_url'));
   }
-  if (!m) throw new Error('sin JSON en la página');
+  if (!m) {
+    console.error('humble sin JSON: largo', html.length, 'scripts', [...html.matchAll(/<script([^>]*)>/g)].map(x => x[1].trim().slice(0, 60)).slice(0, 12).join(' | '), 'inicio', clean(html).slice(0, 200));
+    throw new Error('sin JSON en la página');
+  }
   const out = new Map();
   (function walk(o) {
     if (!o || typeof o !== 'object') return;
