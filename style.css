@@ -206,3 +206,20 @@ s { opacity: .7; }
 .inc ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--mut); max-height: 220px; overflow: auto; }
 .inc .hit { color: var(--ac); font-weight: 600; }
 .tile .art { display: block; }
+.tile > a { display: flex; flex-direction: column; gap: 10px; }
+.mini { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+.mini img { height: 44px; aspect-ratio: 460 / 215; object-fit: cover; border-radius: 6px; scroll-snap-align: start; flex: none; background: var(--s2); }
+.mini img.hit { outline: 2px solid var(--ac); outline-offset: 1px; }
+.inc li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.inc li small { white-space: nowrap; }
+.mall { display: block; color: var(--ac); font-size: 12px; }
+.map { display: inline-flex; align-items: center; gap: 3px; }
+.map .ic { width: 14px; height: 14px; }
+.movies { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 16px; }
+.movie { display: flex; flex-direction: column; gap: 8px; }
+.movie img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 14px; display: block; background: var(--s2); }
+.movie strong { font-weight: 600; line-height: 1.25; }
+.movie .inc ul { padding-left: 0; list-style: none; }
+.movie .inc li { flex-direction: column; gap: 0; }
+#cineChips { margin-top: 4px; }
+@media (max-width: 720px) { .movies { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tabs a { padding: 8px 4px; } }

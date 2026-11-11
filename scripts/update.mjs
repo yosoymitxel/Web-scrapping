@@ -71,18 +71,39 @@ await step('humble', async () => {
     const page = await get(b.url, 'text').catch(() => '');
     const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
     if (!j) continue;
-    const names = new Set(); let price = 0;
+    const items = new Map(); let price = 0;
     (function walk(o) {
       if (!o || typeof o !== 'object') return;
-      if (o.human_name && o.machine_name && !o.tier_order) names.add(o.human_name);
+      if (o.human_name && o.machine_name && !o.tier_order && !items.has(o.human_name)) {
+        // La imagen viene en distintas claves según el ítem: la primera URL de imagen que aparezca
+        const img = Object.entries(o).find(([k, v]) => /image/i.test(k) && typeof v === 'string' && /^https?:/.test(v))?.[1] || '';
+        items.set(o.human_name, { n: o.human_name, img });
+      }
       if (o.price?.amount && o.price?.currency === 'USD') price = Math.max(price, +o.price.amount);
       Object.values(o).forEach(walk);
     })(JSON.parse(j[1]));
-    b.games = [...names].filter(n => n !== b.name && !/charity|plan\b|subscription|donat/i.test(n)).slice(0, 60);
+    b.games = [...items.values()].filter(g => g.n !== b.name && !/charity|plan\b|subscription|donat/i.test(g.n)).slice(0, 60);
     if (price) b.price = price;
     await sleep(300);
   }
-  console.log('humble juegos', [...out.values()].map(b => b.games?.length || 0).join(','));
+  // Precio actual más bajo y mínimo histórico de cada juego (CheapShark), como en deseados
+  const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const all = new Map();
+  for (const b of out.values()) for (const g of b.games || []) all.set(norm(g.n), g);
+  const byId = {};
+  for (const [k, g] of all) {
+    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(g.n)}&limit=10`).catch(() => []);
+    const m = hit.find(h => norm(h.external) === k);
+    if (m) { g.usd = +m.cheapest; g.steam = +m.steamAppID || undefined; byId[m.gameID] = g; }
+    await sleep(250);
+  }
+  const ids = Object.keys(byId);
+  for (let i = 0; i < ids.length; i += 25) {
+    const info = await get(`https://www.cheapshark.com/api/1.0/games?ids=${ids.slice(i, i + 25).join(',')}`).catch(() => ({}));
+    for (const [gid, { cheapestPriceEver: low }] of Object.entries(info)) if (low?.price) byId[gid].low = +low.price;
+    await sleep(300);
+  }
+  console.log('humble juegos', [...out.values()].map(b => b.games?.length || 0).join(','), 'con img', [...all.values()].filter(g => g.img).length, 'con precio', ids.length, '/', all.size);
   return { items: [...out.values()] };
 });
 
@@ -153,4 +174,65 @@ await step('watch', async () => {
   }
   console.log('watch', JSON.stringify(items));
   return { items };
+});
+
+// Playtests y demos (playtestgames.net): datos dentro del payload de Next.js
+await step('playtest', async () => {
+  const h = (await get('https://playtestgames.net/', 'text')).replace(/\\"/g, '"');
+  const items = new Map();
+  for (const m of h.matchAll(/"appId":"(\d+)"[^{}]*?"name":"([^"]+)"[\s\S]{0,400}?"status":"(\w+)"[\s\S]{0,200}?"image":"([^"]+)"/g))
+    if (!items.has(m[1])) items.set(m[1], { id: +m[1], name: m[2].replace(/\\u([0-9a-f]{4})/gi, (_, c) => String.fromCharCode(parseInt(c, 16))), status: m[3], img: m[4] });
+  if (!items.size) throw new Error('sin juegos');
+  console.log('playtest', items.size, [...items.values()].filter(i => i.status === 'playtest').length);
+  return { items: [...items.values()] };
+});
+
+// Cartelera (cines.com.py): película → cines y horarios
+await step('cines', async () => {
+  const home = await get('https://www.cines.com.py/cine/2--Ita%C3%BA%20Cinema%20Pop%20del%20Sol', 'text');
+  const cines = [...new Map([...home.matchAll(/href="(https:\/\/www\.cines\.com\.py\/cine\/(\d+)--[^"#]+)"/g)].map(m => [m[2], m[1]])).entries()];
+  const movies = new Map();
+  for (const [, url] of cines) {
+    const h = url.endsWith('del%20Sol') ? home : await get(url, 'text').catch(() => '');
+    const cine = decodeURIComponent(url.split('--')[1]);
+    // Solo la pestaña "En cartelera" (antes de "Próximamente")
+    const cut = h.indexOf('id="contenido_estrenos"');
+    for (const b of (cut > 0 ? h.slice(0, cut) : h).split('cartelera_cuadro').slice(1)) {
+      const m = b.match(/href="(https:\/\/www\.cines\.com\.py\/pelicula\/(\d+)--[^"]+)"[\s\S]*?src="([^"]+)"[\s\S]*?<h1>\s*([^<]+?)\s*</);
+      if (!m) continue;
+      const times = [...b.matchAll(/Horarios ([^<]+)<\/strong>[\s\S]*?<p>([^<]*)<\/p>/g)].map(t => `${t[1].trim()}: ${t[2].trim()}`);
+      const mv = movies.get(m[2]) || { id: +m[2], title: clean(m[4]), img: m[3], url: m[1], at: [] };
+      mv.at.push({ cine, times });
+      movies.set(m[2], mv);
+    }
+    await sleep(300);
+  }
+  if (!movies.size) throw new Error('sin películas');
+  console.log('cines', cines.length, 'películas', movies.size);
+  return { movies: [...movies.values()].sort((a, b) => b.at.length - a.at.length) };
+});
+
+// Locales de shoppings: nombres sueltos para ubicar promos por comercio
+await step('shoppings', async () => {
+  const list = [
+    ['Pinedo Shopping', 'https://pinedo.com.py/tiendas/'],
+    ['Shopping del Sol', 'https://www.delsol.com.py/shopping'],
+    ['Paseo La Galería', 'https://paseolagaleria.com.py/locales.php'],
+    ['Shopping Mariscal', 'https://www.mariscal.com.py/locales-comerciales'],
+    ['Multiplaza', 'https://www.multiplaza.com.py/locales'],
+  ];
+  const out = [];
+  for (const [name, url] of list) {
+    const h = await get(url, 'text').catch(e => (console.error(name, e.message), ''));
+    const stores = new Set();
+    for (const m of h.matchAll(/<(h[1-6]|a|strong|span|p|li|figcaption|div)[^>]*>([^<]{2,40})<\/\1>/g)) {
+      const t = clean(m[2]);
+      if (/[a-záéíóúñ]/i.test(t) && !/local|piso|horario|shopping|contacto|inicio|tiendas|ver m/i.test(t)) stores.add(t);
+    }
+    for (const m of h.matchAll(/alt="([^"]{2,40})"/g)) stores.add(clean(m[1]));
+    console.log('shopping', name, stores.size);
+    out.push({ name, url, stores: [...stores] });
+    await sleep(300);
+  }
+  return { items: out };
 });

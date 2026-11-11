@@ -27,7 +27,7 @@ const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
 let toastT;
 const toast = msg => { const t = $('toast'); t.innerHTML = icon('check') + esc(msg); t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); };
 
-const [as, fx, fr, wl, hb] = await Promise.all(['asphalt', 'fx', 'free', 'wishlist', 'humble'].map(load));
+const [as, fx, fr, wl, hb, pt, cn, sh] = await Promise.all(['asphalt', 'fx', 'free', 'wishlist', 'humble', 'playtest', 'cines', 'shoppings'].map(load));
 
 // Dólar: un solo tipo de cambio para todos los precios
 const R = fx.PYG || 0;
@@ -46,7 +46,7 @@ $('usd').oninput = e => $('pyg').value = e.target.value ? Math.round(e.target.va
 $('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).toFixed(2) : '';
 
 // Pestañas por hash
-const views = ['juegos', 'tarjetas', 'asphalt'];
+const views = ['juegos', 'tarjetas', 'cine', 'asphalt'];
 const route = () => {
   const v = views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'juegos';
   views.forEach(id => $('v-' + id).classList.toggle('on', id === v));
@@ -139,6 +139,14 @@ $('v-asphalt').addEventListener('click', async e => {
   reveal('#asHero');
 });
 
+// Oculto: lo ya visto, en todos los paneles (perfil)
+const hidden = new Set(profile.hidden || []);
+const hide = k => { hidden.add(k); profile.hidden = [...hidden]; saveProfile(); };
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-hide]'); if (!b) return;
+  e.preventDefault(); hide(b.dataset.hide); b.closest('article, .tile')?.remove(); toast('Oculto');
+});
+const hideBtn = k => `<button class="hide" data-hide="${esc(k)}" aria-label="Ocultar">×</button>`;
 // Juegos gratis: Steam y Epic primero; el primero va de portada
 const free = fr.items || [];
 const top = free[0];
@@ -150,13 +158,13 @@ if (top) {
 } else $('frHero').hidden = true;
 const groups = ['Todos', ...new Set(free.map(g => g.store))];
 let frStore = 'Todos';
-const tile = (url, img, title, pill, sub) => `<a class="tile" href="${esc(url)}" target="_blank" rel="noopener">
+const tile = (url, img, title, pill, sub, key) => `<article class="tile"><a href="${esc(url)}" target="_blank" rel="noopener">
   <div class="art">${img ? `<img loading="lazy" src="${esc(img)}" alt="" width="300" height="169">` : ''}${pill ? `<span class="pill">${esc(pill)}</span>` : ''}</div>
-  <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>`;
+  <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>${key ? hideBtn(key) : ''}</article>`;
 const drawFree = () => {
   $('frChips').innerHTML = groups.length > 2 ? groups.map(s => `<button class="chip" data-s="${esc(s)}" aria-pressed="${s === frStore}">${esc(s)}<i>${s === 'Todos' ? free.length : free.filter(g => g.store === s).length}</i></button>`).join('') : '';
-  const list = free.filter(g => (frStore === 'Todos' ? g !== top : g.store === frStore));
-  $('free').innerHTML = list.map(g => tile(g.url, g.img, g.title, g.store, [g.worth && `<s>${esc(g.worth)}</s>`, g.end && `hasta ${day(g.end)}`].filter(Boolean).join(' · '))).join('')
+  const list = free.filter(g => !hidden.has('f' + g.url) && (frStore === 'Todos' ? g !== top : g.store === frStore));
+  $('free').innerHTML = list.map(g => tile(g.url, g.img, g.title, g.store, [g.worth && `<s>${esc(g.worth)}</s>`, g.end && `hasta ${day(g.end)}`].filter(Boolean).join(' · '), 'f' + g.url)).join('')
     || empty(free.length ? 'Nada en esta tienda.' : 'Sin datos todavía.');
 };
 $('frChips').onclick = e => { const s = e.target.closest('[data-s]')?.dataset.s; if (s) { frStore = s; drawFree(); reveal('#free .tile'); } };
@@ -164,14 +172,6 @@ drawFree();
 
 // Deseados: precio Steam (región PY) y la tienda más barata, en ₲
 const games = (wl.games || []).slice().sort((a, b) => b.off - a.off || (a.usd ?? 1e9) - (b.usd ?? 1e9));
-// Oculto: lo ya visto, en todos los paneles (perfil)
-const hidden = new Set(profile.hidden || []);
-const hide = k => { hidden.add(k); profile.hidden = [...hidden]; saveProfile(); };
-document.addEventListener('click', e => {
-  const b = e.target.closest('[data-hide]'); if (!b) return;
-  e.preventDefault(); hide(b.dataset.hide); b.closest('article, .tile')?.remove(); toast('Oculto');
-});
-const hideBtn = k => `<button class="hide" data-hide="${esc(k)}" aria-label="Ocultar">×</button>`;
 const card = g => {
   const q = encodeURIComponent(g.name);
   const alt = g.best && g.usd != null && g.best.usd < g.usd;
@@ -197,21 +197,35 @@ $('wlq').oninput = drawWl;
 $('wlSale').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); drawWl(); reveal('#wl .game'); };
 drawWl();
 
-// Bundles de Humble
+// Bundles de Humble: juegos de portada en carrusel, deseados primero, precio y mínimo por juego
 const norm = t => (t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const wished = new Map(games.map(g => [norm(g.name), g]));
-const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url)).map(b => ({ ...b, hits: (b.games || []).filter(n => wished.has(norm(n))) }))
-  .sort((a, b) => b.hits.length - a.hits.length);
-$('hb').innerHTML = bundles.map(b => `<article class="tile">
-  <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener">${b.img ? `<img loading="lazy" src="${esc(b.img)}" alt="">` : ''}${b.hits.length ? `<span class="pill ac">${b.hits.length} deseado${b.hits.length > 1 ? 's' : ''}</span>` : ''}</a>
+const wishedId = new Set(games.map(g => g.id));
+const isWished = x => wishedId.has(x.steam) || wished.has(norm(x.n));
+const money = usd => usd == null ? '' : R ? gs(usd) : '$' + usd.toFixed(2);
+const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
+  .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: g } : g); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
+  .sort((a, b) => b.hits - a.hits);
+$('hb').innerHTML = bundles.map(b => `<article class="tile bundle">
+  <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener">${b.img ? `<img loading="lazy" src="${esc(b.img)}" alt="">` : ''}${b.hits ? `<span class="pill ac">${b.hits} deseado${b.hits > 1 ? 's' : ''}</span>` : ''}</a>
   ${hideBtn('b' + b.url)}
-  <strong>${esc(b.name)}</strong><span class="sub">${[b.price && (R ? gs(b.price) : '$' + b.price), b.end && 'hasta ' + day(b.end)].filter(Boolean).join(' · ')}</span>
-  ${b.games?.length ? `<details class="inc"><summary>${b.games.length} juegos</summary><ul>${b.games.map(n => { const w = wished.get(norm(n)); return `<li${w ? ' class="hit"' : ''}>${esc(n)}${w && w.usd ? ` <small>${gs(w.usd)}</small>` : ''}</li>`; }).join('')}</ul></details>` : ''}
+  ${b.gs.some(g => g.img) ? `<div class="mini">${b.gs.filter(g => g.img).slice(0, 12).map(g => `<img loading="lazy" src="${esc(g.img)}" alt="${esc(g.n)}" title="${esc(g.n)}"${isWished(g) ? ' class="hit"' : ''}>`).join('')}</div>` : ''}
+  <strong>${esc(b.name)}</strong><span class="sub">${[b.price && money(b.price), b.end && 'hasta ' + day(b.end)].filter(Boolean).join(' · ')}</span>
+  ${b.gs.length ? `<details class="inc"><summary>${b.gs.length} juegos${b.gs.some(g => g.usd) ? ' · valen ' + money(b.gs.reduce((t, g) => t + (g.usd || 0), 0)) : ''}</summary><ul>${b.gs.map(g => `<li${isWished(g) ? ' class="hit"' : ''}><span>${esc(g.n)}</span><small>${[money(g.usd), g.low != null && 'mín ' + money(g.low)].filter(Boolean).join(' · ')}</small></li>`).join('')}</ul></details>` : ''}
 </article>`).join('') || empty('Sin datos todavía.');
+
+// Playtests abiertos; demos solo si el juego está en deseados (deseados primero)
+const pts = (pt.items || []).filter(x => !hidden.has('t' + x.id) && (x.status === 'playtest' || wishedId.has(x.id)))
+  .sort((a, b) => wishedId.has(b.id) - wishedId.has(a.id));
+$('pt').innerHTML = pts.map(x => tile(`https://store.steampowered.com/app/${x.id}/`, x.img, x.name, wishedId.has(x.id) ? 'Deseado' : '', x.status === 'playtest' ? 'Playtest abierto' : 'Demo', 't' + x.id)).join('')
+  || empty('Sin playtests ahora.');
 $('gmAt').textContent = since(wl.at || fr.at);
 
 // Tarjetas: busca en PromoScraper (se actualiza a diario)
 let promos;
+// Shopping donde está el local (listas de locales de cada shopping)
+const malls = (sh.items || []).map(m => ({ name: m.name, set: new Set(m.stores.map(norm)) }));
+const mall = t => malls.filter(m => m.set.has(norm(t))).map(m => m.name).join(', ');
 const recent = store.get('recent');
 const drawRecent = () => $('recent').innerHTML = recent.map(r => `<button class="chip" data-q="${esc(r)}">${esc(r)}</button>`).join('');
 const search = async q => {
@@ -230,9 +244,9 @@ const search = async q => {
   drawBanks();
   $('promos').innerHTML = hit.filter(p => !hidden.has('p' + p.id)).slice(0, 40).map(p => `<article class="promo">
     ${p.img ? `<img class="pimg" loading="lazy" src="${esc(p.img)}" alt="">` : `<span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>`}
-    <div style="min-width:0"><strong>${esc(p.title)}</strong>
-      <small>${esc([p.img ? p.bankShort : '', (p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small>
-      <small class="src"><a href="${esc(p.href)}" target="_blank" rel="noopener">Bases · ${esc(p.bankShort)}</a> · <a href="https://www.google.com/maps/search/${encodeURIComponent(p.title + ' Paraguay')}" target="_blank" rel="noopener">Mapa</a></small></div>
+    <div style="min-width:0"><strong>${esc(p.title)}</strong>${mall(p.title) ? `<small class="mall">${esc(mall(p.title))}</small>` : ''}
+      <small>${esc([p.img ? p.bankShort : '', p.when || (p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small>${p.cards ? `<small>${esc(p.cards.join(' · '))}</small>` : ''}
+      <small class="src"><a href="${esc(p.href)}" target="_blank" rel="noopener">Bases · ${esc(p.bankShort)}</a> · <a class="map" href="https://www.google.com/maps/search/${encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay'))}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-pin"/></svg>Mapa</a></small></div>
     <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id)}</article>`).join('')
     || empty(`Sin promos para «${esc(q)}».`);
   reveal('#promos .promo');
@@ -267,3 +281,20 @@ $('pq').onsubmit = e => { e.preventDefault(); const q = encodeURIComponent(e.tar
 
 const watch = await load('watch');
 $('watch').innerHTML = (watch.items || []).filter(w => w.off).map(w => `<a class="lk" href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.name)}<span class="pill ac">-${w.off}%</span></a>`).join('');
+
+// Cartelera: película primero; filtro por cine
+const movies = cn.movies || [];
+const cinesAll = [...new Set(movies.flatMap(m => m.at.map(a => a.cine)))].sort();
+let cine = store.get('cine', '');
+const drawCine = () => {
+  $('cineChips').innerHTML = ['', ...cinesAll].map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cine}">${esc(c || 'Todos')}</button>`).join('');
+  const list = movies.filter(m => !cine || m.at.some(a => a.cine === cine));
+  $('movies').innerHTML = list.map(m => `<article class="movie">
+    <a href="${esc(m.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(m.img)}" alt="" width="200" height="300"></a>
+    <strong>${esc(m.title)}</strong>
+    <details class="inc"><summary>${cine ? 'Horarios' : m.at.length + ' cine' + (m.at.length > 1 ? 's' : '')}</summary><ul>${m.at.filter(a => !cine || a.cine === cine).map(a => `<li><span>${esc(a.cine)}</span><small>${esc(a.times.join(' · '))}</small></li>`).join('')}</ul></details>
+  </article>`).join('') || empty('Sin cartelera todavía.');
+};
+$('cineChips').onclick = e => { const c = e.target.dataset.c; if (c == null) return; cine = c; store.set('cine', c); drawCine(); reveal('#movies .movie'); };
+drawCine();
+$('cnAt').textContent = since(cn.at);
