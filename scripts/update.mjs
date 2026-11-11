@@ -76,7 +76,7 @@ await step('humble', async () => {
     const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
     const meta = k => (page.match(new RegExp(`<meta[^>]*(?:property|name)="${k}"[^>]*content="([^"]*)"`, 'i')) || page.match(new RegExp(`<meta[^>]*content="([^"]*)"[^>]*(?:property|name)="${k}"`, 'i')))?.[1];
     if (!b.img && meta('og:image')) b.img = clean(meta('og:image'));
-    if (meta('og:title') && b.name.toLowerCase() === b.url.split('/').pop().replace(/-/g, ' ')) b.name = clean(meta('og:title')).replace(/\s*\(.*$/, '');
+    if (meta('og:title') && b.name.toLowerCase() === b.url.split('/').pop().replace(/-/g, ' ')) b.name = clean(meta('og:title')).replace(/\s*\|\s*Humble Bundle$/i, '').replace(/^Humble\s+/, '').replace(/\s+Bundle$/, '');
     if (!j) {
       // Página Next.js: HTML con lista de juegos (imagen + nombre + MSRP), niveles "8 Items$315.27$25.00" y cuenta regresiva
       const txt = clean(page.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' '));
@@ -215,7 +215,14 @@ await step('cines', async () => {
     await sleep(300);
   }
   if (!movies.size) throw new Error('sin películas');
-  console.log('cines', cines.length, 'películas', movies.size, 'con horarios', [...movies.values()].filter(m => m.at.some(a => a.times.length)).length);
+  // Género de la ficha (campo GENERO)
+  for (const mv of movies.values()) {
+    const f = await get(mv.url, 'text').catch(() => '');
+    const g = f.match(/<strong>\s*GENERO\s*<\/strong>\s*<span>\s*:?\s*([^<]*)<\/span>/i)?.[1];
+    mv.genres = g ? clean(g).replace(/\.$/, '').split(',').map(x => x.trim()).filter(Boolean) : [];
+    await sleep(200);
+  }
+  console.log('cines', cines.length, 'películas', movies.size, 'con género', [...movies.values()].filter(m => m.genres.length).length, 'con horarios', [...movies.values()].filter(m => m.at.some(a => a.times.length)).length);
   return { movies: [...movies.values()].sort((a, b) => b.at.length - a.at.length) };
 });
 

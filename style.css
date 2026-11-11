@@ -345,3 +345,18 @@ a.chip { gap: 6px; }
 .game-hero .bg .ph { font-size: 0; }
 .glist li > * { min-width: 0; }
 .glist .gl { flex-wrap: wrap; gap: 0 12px; }
+
+/* Botones circulares de tienda */
+.go { gap: 8px; padding-top: 10px; justify-content: flex-start; flex-wrap: wrap; }
+.fav { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--s2); border: 1px solid var(--line); transition: border-color .2s, transform .2s var(--ease); }
+.fav:hover { border-color: var(--mut); }
+.fav:active { transform: scale(.94); }
+.fav img { width: 20px; height: 20px; border-radius: 4px; display: block; }
+.fav b { font: 700 14px var(--display); color: var(--mut); }
+.go a.fav { flex: none; min-height: 0; }
+.glist .gl { gap: 8px; margin-top: 2px; }
+.glist .gl a.fav { min-height: 0; width: 36px; height: 36px; }
+#genreChips, #cineChips { margin-top: 8px; }
+.sede { margin-top: 8px; max-width: 360px; }
+.movies + .more { }
+.movie .mut { font-size: 12px; margin-top: -4px; }

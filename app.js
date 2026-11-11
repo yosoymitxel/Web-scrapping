@@ -33,10 +33,12 @@ const paged = (box, items, render, none, n = 12) => {
 const empty = msg => `<div class="empty">${msg}</div>`;
 const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
 const A = (href, label, cls = '') => `<a${cls ? ` class="${cls}"` : ''} href="${esc(href)}" target="_blank" rel="noopener">${label}${icon('link')}</a>`;
+const fav = (href, domain, name) => `<a class="fav" href="${esc(href)}" target="_blank" rel="noopener" aria-label="${esc(name)}" title="${esc(name)}"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" alt="" width="20" height="20" data-fl="${esc(name[0])}"></a>`;
 const im = (src, name, extra = '') => src ? `<img loading="lazy" src="${esc(src)}" alt="" data-ph="${esc(name)}"${extra ? ' ' + extra : ''}>` : `<span class="ph">${esc(name)}</span>`;
 // Imagen rota: tarjeta con el nombre en lugar del ícono roto
 addEventListener('error', e => {
   const i = e.target; if (i?.tagName !== 'IMG') return;
+  if (i.dataset.fl) { const f = document.createElement('b'); f.textContent = i.dataset.fl; i.replaceWith(f); return; }
   const ph = document.createElement('span'); ph.className = 'ph';
   ph.textContent = i.dataset.ph || (() => { try { return new URL(i.src).hostname.replace(/^www\./, ''); } catch { return ''; } })();
   i.replaceWith(ph);
@@ -275,7 +277,7 @@ if (top) {
 const groups = ['Todos', ...new Set(free.map(g => g.store))];
 let frStore = 'Todos';
 const tile = (url, img, title, pill, sub, key) => `<article class="tile"><a href="${esc(url)}" target="_blank" rel="noopener">
-  <div class="art">${im(img, title)}${pill ? `<span class="pill">${esc(pill)}</span>` : ''}<span class="ext">${icon('link')}</span></div>
+  <div class="art">${im(img, title)}${pill ? `<span class="pill">${esc(pill)}</span>` : ''}</div>
   <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>${key ? hideBtn(key, title) : ''}</article>`;
 const drawFree = () => {
   $('frChips').innerHTML = groups.length > 2 ? groups.map(s => `<button class="chip" data-s="${esc(s)}" aria-pressed="${s === frStore}">${esc(s)}<i>${s === 'Todos' ? free.length : free.filter(g => g.store === s).length}</i></button>`).join('') : '';
@@ -307,12 +309,12 @@ const card = g => {
   const usd = alt ? g.best.usd : g.usd;
   const px = g.free ? '<div class="px"><b class="now">Gratis</b></div>' : usd == null ? '<div class="px"><b class="now nop">Sin precio</b></div>' : priceBox({ usd, min: g.low?.usd });
   return `<article class="game surf">
-    <a class="art" href="${alt ? esc(g.best.url) : `https://store.steampowered.com/app/${g.id}`}" target="_blank" rel="noopener" aria-label="${esc(g.name)} en ${esc(alt ? g.best.store : 'Steam')}">${im(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`, g.name)}${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}${alt ? `<span class="pill where">${esc(g.best.store)}</span>` : ''}<span class="ext">${icon('link')}</span></a>
+    <a class="art" href="${alt ? esc(g.best.url) : `https://store.steampowered.com/app/${g.id}`}" target="_blank" rel="noopener" aria-label="${esc(g.name)} en ${esc(alt ? g.best.store : 'Steam')}">${im(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`, g.name)}${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}${alt ? `<span class="pill where">${esc(g.best.store)}</span>` : ''}</a>
     ${hideBtn('g' + g.id, g.name)}
     <div class="body">
       <span class="name">${esc(g.name)}</span>
       ${px}
-      <div class="go">${A(`https://steamdb.info/app/${g.id}/`, 'SteamDB')}${A(`https://www.eneba.com/latam/store/all?text=${q}`, 'Eneba')}${A(`https://www.humblebundle.com/store/search?search=${q}`, 'Humble')}</div>
+      <div class="go">${fav(`https://steamdb.info/app/${g.id}/`, 'steamdb.info', 'SteamDB')}${fav(`https://www.eneba.com/latam/store/all?text=${q}`, 'eneba.com', 'Eneba')}${fav(`https://www.humblebundle.com/store/search?search=${q}`, 'humblebundle.com', 'Humble')}</div>
     </div></article>`;
 };
 const drawWl = () => {
@@ -329,18 +331,19 @@ drawWl();
 const isWished = x => wishedId.has(x.steam) || wished.has(norm(x.n));
 const drawRails = () => {
 const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
+  .map(b => ({ ...b, name: String(b.name || '').replace(/\s*\|\s*Humble Bundle$/i, '') }))
   .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: g } : g); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
   .sort((a, b) => b.hits - a.hits);
 const gameLi = g => {
   const q = encodeURIComponent(g.n), id = g.steam;
-  return `<li${isWished(g) ? ' class="hit"' : ''}><span class="cv">${im(g.img || (id ? `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_231x87.jpg` : ''), g.n)}</span><span class="gn">${esc(g.n)}</span><span class="gl">${A(id ? `https://store.steampowered.com/app/${id}` : `https://store.steampowered.com/search/?term=${q}`, 'Steam')}${A(id ? `https://steamdb.info/app/${id}/` : `https://steamdb.info/search/?a=app&q=${q}`, 'SteamDB')}</span></li>`;
+  return `<li${isWished(g) ? ' class="hit"' : ''}><span class="cv">${im(g.img || (id ? `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_231x87.jpg` : ''), g.n)}</span><span class="gn">${esc(g.n)}</span><span class="gl">${fav(id ? `https://store.steampowered.com/app/${id}` : `https://store.steampowered.com/search/?term=${q}`, 'store.steampowered.com', 'Steam')}${fav(id ? `https://steamdb.info/app/${id}/` : `https://steamdb.info/search/?a=app&q=${q}`, 'steamdb.info', 'SteamDB')}</span></li>`;
 };
 const over = b => { const t = endAt(b); return t && t < Date.now(); };
 bundles.sort((a, b) => over(a) - over(b));
 $('hb').innerHTML = bundles.map(b => {
   const n = b.gs.length, p = num(b.price);
   return `<article class="tile bundle surf${over(b) ? ' over' : ''}">
-  <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener" aria-label="${esc(b.name)}">${im(b.img, b.name)}${b.hits ? `<span class="pill ac">${b.hits} deseado${b.hits > 1 ? 's' : ''}</span>` : ''}<span class="ext">${icon('link')}</span></a>
+  <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener" aria-label="${esc(b.name)}">${im(b.img, b.name)}${b.hits ? `<span class="pill ac">${b.hits} deseado${b.hits > 1 ? 's' : ''}</span>` : ''}</a>
   ${hideBtn('b' + b.url, b.name)}
   <div class="body"><strong>${esc(b.name)}</strong>
   ${p ? priceBox({ usd: p, extra: n ? `<small class="pg">≈ ${money(p / n)} por juego</small>` : '' }) : ''}
@@ -499,19 +502,36 @@ const onSale = (watch.items || []).filter(w => w.off);
 $('watchHead').hidden = !onSale.length;
 $('watch').innerHTML = onSale.map(w => `<div class="lk">${A(w.url, esc(w.name))}<span class="pill ac">-${w.off}%</span></div>`).join('');
 
-// Cartelera: película primero; filtro por cine
+// Cartelera: portada primero; cadena > sede, y género, con contador
 const movies = cn.movies || [];
-const cinesAll = [...new Set(movies.flatMap(m => m.at.map(a => a.cine)))].sort();
-let cine = store.get('cine', '');
+const chainOf = n => /ita[uú]/i.test(n) ? 'Itaú Cinema Pop' : /cinemark/i.test(n) ? 'Cinemark' : /cineart/i.test(n) ? 'Cineart' : 'Otros cines';
+const sedeOf = n => { const t = n.replace(/^cines?\s+/i, '').replace(/^(ita[uú]\s+cinema\s?pop|ita[uú]|cinemark|cineart)\s*-?\s*/i, '').replace(/^-\s*/, '').trim() || n; return t[0].toUpperCase() + t.slice(1); };
+const fl = { c: store.get('cine2', ''), s: '', g: '' };
+const inCine = (a, c, s) => (!c || chainOf(a.cine) === c) && (!s || sedeOf(a.cine) === s);
+const hasM = (m, c, s, g) => (!g || (m.genres || []).includes(g)) && m.at.some(a => inCine(a, c, s));
+const cnt = (c, s, g) => movies.filter(m => hasM(m, c, s, g)).length;
+const chip = (attr, v, label, n, on) => `<button class="chip" data-${attr}="${esc(v)}" aria-pressed="${on}">${esc(label)}<i>${n}</i></button>`;
 const drawCine = () => {
-  $('cineChips').innerHTML = ['', ...cinesAll].map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cine}">${esc(c || 'Todos')}</button>`).join('');
-  const list = movies.filter(m => !cine || m.at.some(a => a.cine === cine));
-  paged($('movies'), list, m => `<article class="movie">
-    <a class="poster" href="${esc(m.url)}" target="_blank" rel="noopener" aria-label="${esc(m.title)}">${im(m.img, m.title)}<span class="ext">${icon('link')}</span></a>
-    <strong>${esc(m.title)}</strong>
-    <details class="inc"><summary>${cine ? 'Horarios' : m.at.length + ' cine' + (m.at.length > 1 ? 's' : '')}</summary><ul>${m.at.filter(a => !cine || a.cine === cine).map(a => `<li><span>${esc(a.cine)}</span><small>${esc(a.times.join(' · '))}</small></li>`).join('')}</ul></details>
-  </article>`, empty('Sin cartelera todavía.'));
+  const chains = [...new Set(movies.flatMap(m => m.at.map(a => chainOf(a.cine))))].sort((a, b) => (a === 'Otros cines') - (b === 'Otros cines') || cnt(b, '', fl.g) - cnt(a, '', fl.g));
+  if (fl.c && !chains.includes(fl.c)) fl.c = '';
+  $('cineChips').innerHTML = [chip('c', '', 'Todos', cnt('', '', fl.g), !fl.c), ...chains.map(c => chip('c', c, c, cnt(c, '', fl.g), c === fl.c))].join('');
+  const sedes = fl.c ? [...new Set(movies.flatMap(m => m.at.filter(a => chainOf(a.cine) === fl.c).map(a => sedeOf(a.cine))))].sort() : [];
+  $('cineSede').hidden = sedes.length < 2;
+  if (!sedes.includes(fl.s)) fl.s = '';
+  $('sedeSel').innerHTML = `<option value="">Todas las sedes (${cnt(fl.c, '', fl.g)})</option>` + sedes.map(x => `<option value="${esc(x)}"${x === fl.s ? ' selected' : ''}>${esc(x)} (${cnt(fl.c, x, fl.g)})</option>`).join('');
+  const gens = [...new Set(movies.flatMap(m => m.genres || []))].sort((a, b) => cnt(fl.c, fl.s, b) - cnt(fl.c, fl.s, a) || a.localeCompare(b));
+  $('genreChips').innerHTML = gens.length ? [chip('g', '', 'Todos los géneros', cnt(fl.c, fl.s, ''), !fl.g), ...gens.map(g => chip('g', g, g, cnt(fl.c, fl.s, g), g === fl.g))].join('') : '';
+  const list = movies.filter(m => hasM(m, fl.c, fl.s, fl.g));
+  paged($('movies'), list, m => {
+    const at = m.at.filter(a => inCine(a, fl.c, fl.s));
+    return `<article class="movie">
+    <a class="poster" href="${esc(m.url)}" target="_blank" rel="noopener" aria-label="${esc(m.title)}">${im(m.img, m.title)}</a>
+    <strong>${esc(m.title)}</strong>${m.genres?.length ? `<small class="mut">${esc(m.genres.slice(0, 2).join(' · '))}</small>` : ''}
+    <details class="inc"><summary>${at.length === 1 ? 'Horarios' : at.length + ' sedes'}</summary><ul>${at.map(a => `<li><span>${esc(a.cine)}</span><small>${esc(a.times.join(' · '))}</small></li>`).join('')}</ul></details>
+  </article>`; }, empty('Sin cartelera con esos filtros.'));
 };
-$('cineChips').onclick = e => { const c = e.target.dataset.c; if (c == null) return; cine = c; store.set('cine', c); drawCine(); reveal('#movies .movie'); };
+$('cineChips').onclick = e => { const b = e.target.closest('[data-c]'); if (!b) return; fl.c = b.dataset.c; fl.s = ''; store.set('cine2', fl.c); drawCine(); reveal('#movies .movie'); };
+$('sedeSel').onchange = e => { fl.s = e.target.value; drawCine(); reveal('#movies .movie'); };
+$('genreChips').onclick = e => { const b = e.target.closest('[data-g]'); if (!b) return; fl.g = b.dataset.g; drawCine(); reveal('#movies .movie'); };
 drawCine();
 $('cnAt').textContent = since(cn.at);
