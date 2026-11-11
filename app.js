@@ -208,8 +208,10 @@ const search = async q => {
   if (!promos) { $('promos').innerHTML = empty('No se pudo leer PromoScraper. Probá en Tarjeteá.'); promos = undefined; return; }
   // Primero por nombre del comercio; la descripción solo si no hay ninguno
   const byTitle = promos.filter(p => p.title?.toLowerCase().includes(ql));
+  const mine = new Set(profile.cards || []);
   const hit = (byTitle.length ? byTitle : promos.filter(p => p.desc?.toLowerCase().includes(ql)))
-    .sort((a, b) => (b.discount_percent || 0) - (a.discount_percent || 0));
+    .sort((a, b) => mine.has(b.bankShort) - mine.has(a.bankShort) || (b.discount_percent || 0) - (a.discount_percent || 0));
+  drawBanks();
   $('promos').innerHTML = hit.slice(0, 40).map(p => `<a class="promo" href="${esc(p.href)}" target="_blank" rel="noopener">
     <span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>
     <div style="min-width:0"><strong>${esc(p.title)}</strong>
@@ -219,6 +221,19 @@ const search = async q => {
   reveal('#promos .promo');
   recent.splice(0, recent.length, q, ...recent.filter(r => r.toLowerCase() !== ql).slice(0, 7));
   store.set('recent', recent); drawRecent();
+};
+// Mis tarjetas: sus promos van primero; se guardan en el perfil
+const drawBanks = () => {
+  if (!promos) return;
+  const mine = new Set(profile.cards || []);
+  $('myBanks').innerHTML = [...new Set(promos.map(p => p.bankShort))].sort().map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${mine.has(b)}">${esc(b)}</button>`).join('');
+};
+$('myBanks').onclick = e => {
+  const b = e.target.dataset.b; if (!b) return;
+  const mine = new Set(profile.cards || []);
+  mine.has(b) ? mine.delete(b) : mine.add(b);
+  profile.cards = [...mine]; saveProfile(); drawBanks();
+  const q = document.querySelector('#tq input').value; if (q) search(q);
 };
 $('tq').onsubmit = e => { e.preventDefault(); search(e.target.q.value); };
 $('recent').onclick = e => e.target.dataset.q && search(e.target.dataset.q);
