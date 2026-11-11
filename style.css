@@ -189,7 +189,6 @@ s { opacity: .7; }
 .links-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); margin-bottom: 12px; }
 .lk { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--s1); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; font-weight: 600; }
 .lk button { background: none; border: 0; color: var(--mut); }
-#login { padding: 0 0 12px; margin: 0; max-width: none; grid-template-columns: 1fr 1fr auto; }
 #addLink { flex-wrap: wrap; }
 .game, .tile, .promo { position: relative; }
 .hide { position: absolute; top: 8px; left: 8px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgb(8 9 12 / .55); color: #fff; font-size: 16px; line-height: 1; opacity: .7; }
