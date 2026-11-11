@@ -1,8 +1,6 @@
 // Corre en GitHub Actions (Node 20, sin dependencias). Escribe data/*.json.
 import { writeFile } from 'node:fs/promises';
 
-// steamcommunity.com responde 429 a los runners de GitHub: el id va fijo.
-const STEAM_ID = '76561198865545057';
 const UA = { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'accept-language': 'es,en;q=0.8' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const get = async (url, as = 'json', tries = 3) => {
@@ -35,7 +33,7 @@ await step('asphalt', async () => {
 
 await step('fx', async () => {
   const { rates: r } = await get('https://open.er-api.com/v6/latest/USD');
-  return { PYG: r.PYG };
+  return { PYG: r.PYG, ARS: r.ARS, BRL: r.BRL, EUR: r.EUR };
 });
 
 await step('free', async () => {
@@ -50,57 +48,6 @@ await step('free', async () => {
   return { items };
 });
 
-await step('wishlist', async () => {
-  const wl = await get(`https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid=${STEAM_ID}`);
-  const ids = (wl.response.items || []).map(i => i.appid);
-  const games = [];
-  for (let i = 0; i < ids.length; i += 100) {
-    const input = {
-      ids: ids.slice(i, i + 100).map(appid => ({ appid })),
-      context: { language: 'spanish', country_code: 'PY' },
-      data_request: { include_assets: true, include_all_purchase_options: false },
-    };
-    const r = await get(`https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=${encodeURIComponent(JSON.stringify(input))}`);
-    for (const s of r.response.store_items || []) {
-      const p = s.best_purchase_option;
-      const a = s.assets;
-      games.push({
-        id: s.appid, name: s.name,
-        img: a?.asset_url_format && a.small_capsule
-          ? 'https://shared.akamai.steamstatic.com/store_item_assets/' + a.asset_url_format.replace('${FILENAME}', a.small_capsule)
-          : `https://cdn.akamai.steamstatic.com/steam/apps/${s.appid}/capsule_231x87.jpg`,
-        usd: p?.final_price_in_cents != null ? +p.final_price_in_cents / 100 : null,
-        off: p?.discount_pct || 0,
-        free: !!s.is_free,
-      });
-    }
-  }
-  // Precio más bajo fuera de Steam (Humble, GOG, Fanatical, GMG…)
-  const stores = Object.fromEntries((await get('https://www.cheapshark.com/api/1.0/stores').catch(() => [])).map(s => [s.storeID, s.storeName]));
-  const csId = {};
-  for (const g of games) {
-    // CheapShark exige title junto a steamAppID
-    const title = encodeURIComponent(g.name.replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/)[0]);
-    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${title}&steamAppID=${g.id}&limit=60`).catch(e => (console.error(e.message), []));
-    const m = hit.find(h => +h.steamAppID === g.id);
-    if (m) csId[m.gameID] = g;
-    await sleep(300);
-  }
-  const csIds = Object.keys(csId);
-  for (let i = 0; i < csIds.length; i += 25) {
-    const info = await get(`https://www.cheapshark.com/api/1.0/games?ids=${csIds.slice(i, i + 25).join(',')}`).catch(e => (console.error(e.message), {}));
-    for (const [gid, { deals = [], cheapestPriceEver: low }] of Object.entries(info)) {
-      // Mínimo histórico en cualquier tienda (precio US), con fecha
-      if (low?.price) csId[gid].low = { usd: +low.price, date: new Date(low.date * 1000).toISOString().slice(0, 10) };
-      const best = deals.filter(d => d.storeID !== '1').sort((a, b) => a.price - b.price)[0];
-      if (best) csId[gid].best = { usd: +best.price, store: stores[best.storeID] || 'Otra', url: `https://www.cheapshark.com/redirect?dealID=${best.dealID}` };
-    }
-    await sleep(300);
-  }
-  console.log('cheapshark', csIds.length, games.filter(g => g.best).length);
-  if (!games.length) throw new Error('lista vacía o privada');
-  return { games };
-});
 await step('humble', async () => {
   const h = await get('https://www.humblebundle.com/games', 'text');
   const m = h.match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/);
@@ -191,27 +138,27 @@ await step('playtest', async () => {
 
 // Cartelera (cines.com.py): película → cines y horarios
 await step('cines', async () => {
-  const home = await get('https://www.cines.com.py/cine/2--Ita%C3%BA%20Cinema%20Pop%20del%20Sol', 'text');
-  console.log('cines html', home.length, (home.match(/cartelera_cuadro/g) || []).length, home.slice(0, 200).replace(/\s+/g, ' '));
-  const cines = [...new Map([...home.matchAll(/href="(https:\/\/www\.cines\.com\.py\/cine\/(\d+)--[^"#]+)"/g)].map(m => [m[2], m[1]])).entries()];
+  const O = 'https://www.cines.com.py';
+  const home = await get(O + '/cine/2--Ita%C3%BA%20Cinema%20Pop%20del%20Sol', 'text');
+  // Los enlaces vienen relativos y con espacios
+  const cines = [...new Map([...home.matchAll(/href="(\/cine\/(\d+)--[^"#]+)"/g)].map(m => [m[2], O + encodeURI(m[1])])).entries()];
   const movies = new Map();
   for (const [, url] of cines) {
-    const h = url.endsWith('del%20Sol') ? home : await get(url, 'text').catch(() => '');
+    const h = url.includes('/cine/2--') ? home : await get(url, 'text').catch(() => '');
     const cine = decodeURIComponent(url.split('--')[1]);
-    // Solo la pestaña "En cartelera" (antes de "Próximamente")
     const cut = h.indexOf('id="contenido_estrenos"');
     for (const b of (cut > 0 ? h.slice(0, cut) : h).split('cartelera_cuadro').slice(1)) {
-      const m = b.match(/href="(https:\/\/www\.cines\.com\.py\/pelicula\/(\d+)--[^"]+)"[\s\S]*?src="([^"]+)"[\s\S]*?<h1>\s*([^<]+?)\s*</);
+      const m = b.match(/href="(\/pelicula\/(\d+)--[^"]+)"[\s\S]*?src="([^"]+)"[\s\S]*?<h1>\s*([^<]+?)\s*</);
       if (!m) continue;
       const times = [...b.matchAll(/Horarios ([^<]+)<\/strong>[\s\S]*?<p>([^<]*)<\/p>/g)].map(t => `${t[1].trim()}: ${t[2].trim()}`);
-      const mv = movies.get(m[2]) || { id: +m[2], title: clean(m[4]), img: m[3], url: m[1], at: [] };
+      const mv = movies.get(m[2]) || { id: +m[2], title: clean(m[4]), img: O + m[3], url: O + encodeURI(m[1]), at: [] };
       mv.at.push({ cine, times });
       movies.set(m[2], mv);
     }
     await sleep(300);
   }
   if (!movies.size) throw new Error('sin películas');
-  console.log('cines', cines.length, 'películas', movies.size);
+  console.log('cines', cines.length, 'películas', movies.size, 'con horarios', [...movies.values()].filter(m => m.at.some(a => a.times.length)).length);
   return { movies: [...movies.values()].sort((a, b) => b.at.length - a.at.length) };
 });
 

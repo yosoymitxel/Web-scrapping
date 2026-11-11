@@ -36,6 +36,7 @@ const route = () => {
   views.forEach(id => $('v-' + id).classList.toggle('on', id === v));
   document.querySelectorAll('.tabs a').forEach(a => a.hash === '#' + v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
   reveal(['.hero', '.row-head', '.code', '.tile', '.game', '.promo'].map(c => `#v-${v} ${c}`).join());
+  if (v === 'tarjetas') getPromos().then(drawBanks);
   scrollTo({ top: 0 });
 };
 addEventListener('hashchange', route);
@@ -228,7 +229,14 @@ $('frChips').onclick = e => { const s = e.target.closest('[data-s]')?.dataset.s;
 drawFree();
 
 // Deseados: precio Steam (región PY) y la tienda más barata, en ₲
-const games = (wl.games || []).slice().sort((a, b) => b.off - a.off || (a.usd ?? 1e9) - (b.usd ?? 1e9));
+let games = [], wished = new Map(), wishedId = new Set(), wlAt = '', wlMsg = 'Poné tu usuario de Steam en <button class="link" data-prof>Perfil</button> para ver tus deseados.';
+const norm = t => (t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const setGames = wl => {
+  games = (wl.games || []).slice().sort((a, b) => b.off - a.off || (a.usd ?? 1e9) - (b.usd ?? 1e9));
+  wished = new Map(games.map(g => [norm(g.name), g]));
+  wishedId = new Set(games.map(g => g.id));
+  wlAt = wl.at || '';
+};
 const card = g => {
   const q = encodeURIComponent(g.name);
   const alt = g.best && g.usd != null && g.best.usd < g.usd;
@@ -248,18 +256,16 @@ const drawWl = () => {
   const q = $('wlq').value.trim().toLowerCase(), sale = $('wlSale').getAttribute('aria-pressed') === 'true';
   const list = games.filter(g => !hidden.has('g' + g.id) && g.name.toLowerCase().includes(q) && (!sale || g.off || (g.best && g.best.usd < g.usd)));
   $('wl').innerHTML = list.map(card).join('')
-    || empty(games.length ? 'Ninguno coincide.' : 'Sin datos todavía. La lista de deseados de Steam tiene que ser pública.');
+    || empty(games.length ? 'Ninguno coincide.' : wlMsg);
 };
 $('wlq').oninput = drawWl;
 $('wlSale').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); drawWl(); reveal('#wl .game'); };
 drawWl();
 
 // Bundles de Humble: juegos de portada en carrusel, deseados primero, precio y mínimo por juego
-const norm = t => (t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const wished = new Map(games.map(g => [norm(g.name), g]));
-const wishedId = new Set(games.map(g => g.id));
 const isWished = x => wishedId.has(x.steam) || wished.has(norm(x.n));
 const money = usd => usd == null ? '' : R ? gs(usd) : '$' + usd.toFixed(2);
+const drawRails = () => {
 const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
   .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: g } : g); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
   .sort((a, b) => b.hits - a.hits);
@@ -276,10 +282,31 @@ const pts = (pt.items || []).filter(x => !hidden.has('t' + x.id) && (x.status ==
   .sort((a, b) => wishedId.has(b.id) - wishedId.has(a.id));
 $('pt').innerHTML = pts.map(x => tile(`https://store.steampowered.com/app/${x.id}/`, x.img, x.name, wishedId.has(x.id) ? 'Deseado' : '', x.status === 'playtest' ? 'Playtest abierto' : 'Demo', 't' + x.id)).join('')
   || empty('Sin playtests ahora.');
-$('gmAt').textContent = since(wl.at || fr.at);
+$('gmAt').textContent = since(wlAt || fr.at);
+};
+drawRails();
+
+// Deseados desde la función de Supabase (cachea 6 h en el servidor y acá)
+const loadWl = async () => {
+  const user = (profile.steam || '').trim();
+  if (!user) return;
+  const c = store.get('panel.wl', null);
+  if (c?.user === user && c.data?.games) { setGames(c.data); drawWl(); drawRails(); if (Date.now() - c.t < 6 * 36e5) return; }
+  else $('wl').innerHTML = '<div class="skel"></div><div class="skel"></div>';
+  try {
+    const r = await fetch(`${SB}/functions/v1/steam-wishlist?user=${encodeURIComponent(user)}`);
+    const d = await r.json();
+    if (!r.ok || !d.games) throw new Error(d.error || r.status);
+    store.set('panel.wl', { user, t: Date.now(), data: d });
+    setGames(d);
+  } catch (e) { if (!games.length) wlMsg = `No se pudo leer la lista de «${esc(user)}»: ${esc(e.message)}. Tiene que ser pública.`; }
+  drawWl(); drawRails(); reveal('#wl .game');
+};
+loadWl();
 
 // Tarjetas: busca en PromoScraper (se actualiza a diario)
 let promos;
+const getPromos = async () => promos ??= await fetch(PROMOS).then(r => r.json()).catch(() => undefined);
 // Shopping donde está el local (listas de locales de cada shopping)
 const malls = (sh.items || []).map(m => ({ name: m.name, set: new Set(m.stores.map(norm)) }));
 const mall = t => malls.filter(m => m.set.has(norm(t))).map(m => m.name).join(', ');
@@ -291,7 +318,7 @@ const search = async q => {
   document.querySelector('#tq input').value = q;
   $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
   $('promos').innerHTML = '<div class="skel"></div><div class="skel"></div>';
-  promos ??= await fetch(PROMOS).then(r => r.json()).catch(() => null);
+  await getPromos();
   if (!promos) { $('promos').innerHTML = empty('No se pudo leer PromoScraper. Probá en Tarjeteá.'); promos = undefined; return; }
   // Primero por nombre del comercio; la descripción solo si no hay ninguno
   const byTitle = promos.filter(p => p.title?.toLowerCase().includes(ql));
@@ -314,9 +341,9 @@ const search = async q => {
 const drawBanks = () => {
   if (!promos) return;
   const mine = new Set(profile.cards || []);
-  $('myBanks').innerHTML = [...new Set(promos.map(p => p.bankShort))].sort().map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${mine.has(b)}">${esc(b)}</button>`).join('');
+  $('myBanks').innerHTML = $('profBanks').innerHTML = [...new Set(promos.map(p => p.bankShort))].sort().map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${mine.has(b)}">${esc(b)}</button>`).join('');
 };
-$('myBanks').onclick = e => {
+$('myBanks').onclick = $('profBanks').onclick = e => {
   const b = e.target.dataset.b; if (!b) return;
   const mine = new Set(profile.cards || []);
   mine.has(b) ? mine.delete(b) : mine.add(b);

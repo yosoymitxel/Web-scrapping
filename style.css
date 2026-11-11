@@ -223,3 +223,26 @@ s { opacity: .7; }
 .movie .inc li { flex-direction: column; gap: 0; }
 #cineChips { margin-top: 4px; }
 @media (max-width: 720px) { .movies { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tabs a { padding: 8px 4px; } }
+
+/* Cuenta y perfil */
+.acct-btn { display: flex; align-items: center; gap: 8px; background: var(--s1); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; max-width: 160px; transition: border-color .2s; }
+.acct-btn:hover { border-color: var(--ac); }
+.acct-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.sheet { border: 1px solid var(--line); border-radius: 24px; background: var(--bg); color: var(--tx); padding: 0; width: min(520px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; }
+.sheet::backdrop { background: rgb(0 0 0 / .6); backdrop-filter: blur(4px); }
+.sheet-in { padding: 8px 20px 24px; display: grid; gap: 18px; }
+.sheet-in .row-head { margin: 12px 0 0; }
+.stack { display: grid; gap: 12px; }
+.field { display: grid; gap: 6px; font-size: 13px; color: var(--mut); }
+.field input, .field select { background: var(--s1); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; font-size: 16px; color: var(--tx); outline: none; min-width: 0; width: 100%; }
+.field input:focus, .field select:focus { border-color: var(--ac); }
+.lbl { display: block; font-size: 13px; color: var(--mut); margin-bottom: 8px; }
+.mut { color: var(--mut); margin: 0; font-size: 14px; }
+.tools.wrap { flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .bar { gap: 8px; }
+  .brand { display: none; }
+  .fx { margin-left: 0; padding: 8px 12px; }
+  .fx span { display: none; }
+  .acct-btn { margin-left: auto; padding: 8px 12px; max-width: 120px; }
+}
