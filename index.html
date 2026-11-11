@@ -24,6 +24,9 @@
  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+ <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/><rect x="2.5" y="4.5" width="19" height="15" rx="4"/></symbol>
+ <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
 </svg>
 
@@ -34,7 +37,7 @@
    <a href="#juegos"><svg class="ic"><use href="#i-pad"/></svg><span>Juegos</span></a>
    <a href="#tarjetas"><svg class="ic"><use href="#i-card"/></svg><span>Tarjetas</span></a>
    <a href="#cine"><svg class="ic"><use href="#i-film"/></svg><span>Cine</span></a>
-   <a href="#asphalt"><svg class="ic"><use href="#i-car"/></svg><span>Más</span><b class="count" id="nAs"></b></a>
+   <a href="#asphalt"><svg class="ic"><use href="#i-more"/></svg><span>Más</span><b class="count" id="nAs"></b></a>
   </nav>
   <button class="fx" id="fxBtn" aria-expanded="false" aria-controls="fxBox" aria-label="Dólar y conversor">
    <span>US$1</span><b id="rate">—</b>
@@ -59,7 +62,10 @@
  <section id="v-asphalt" class="view">
   <div class="row-head first"><h2>Enlaces</h2></div>
   <div class="links-grid" id="links"></div>
-  <form id="addLink" class="tools"><label class="search"><input name="name" placeholder="Nombre" required></label><label class="search"><input name="url" type="url" placeholder="https://" required></label><button class="btn sm">Agregar</button></form>
+  <details class="done-box add-box"><summary>Agregar enlace</summary>
+   <form id="addLink" class="tools wrap"><label class="search"><input name="name" placeholder="Nombre" aria-label="Nombre del enlace" required></label><label class="search"><input name="url" type="url" placeholder="https://" aria-label="Dirección" required></label><button class="btn sm">Agregar</button></form>
+  </details>
+  <div class="row-head" id="watchHead" hidden><h2>En oferta</h2></div>
   <div class="links-grid" id="watch"></div>
   <div class="row-head"><h2>Asphalt</h2></div>
   <div class="hero code-hero" id="asHero"></div>
@@ -68,6 +74,11 @@
   <details class="done-box" id="doneBox" hidden>
    <summary>Canjeados <span id="nDone"></span></summary>
    <ul class="codes" id="done"></ul>
+  </details>
+  <details class="done-box" id="hidBox" hidden>
+   <summary>Ocultos <span id="nHid"></span></summary>
+   <ul class="hid" id="hidList"></ul>
+   <button class="btn sm ghost" id="hidAll" type="button">Mostrar todos</button>
   </details>
  </section>
 

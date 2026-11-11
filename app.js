@@ -22,8 +22,17 @@ const since = iso => {
   return 'Actualizado ' + (h < 1 ? 'hace minutos' : h < 24 ? `hace ${h | 0} h` : `hace ${h / 24 | 0} d`);
 };
 const day = s => s ? new Date(s + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'short' }) : '';
+const store_ttl = (k, ttl) => { const c = store.get(k, null); return c && Date.now() - c.t < ttl ? c.data : null; };
+const paged = (box, items, render, none, n = 12) => {
+  let b = box.nextElementSibling; if (!b?.classList.contains('more')) { b = document.createElement('button'); b.className = 'chip more'; b.type = 'button'; box.after(b); }
+  let shown = n;
+  const draw = () => { box.innerHTML = items.slice(0, shown).map(render).join('') || none; b.hidden = shown >= items.length; b.textContent = `Ver más (${items.length - shown})`; };
+  b.onclick = () => { shown += n; draw(); };
+  draw();
+};
 const empty = msg => `<div class="empty">${msg}</div>`;
 const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
+const num = v => { const n = typeof v === 'string' ? parseFloat(v.replace(/[^0-9.]/g, '')) : v; return Number.isFinite(n) ? n : null; };
 let toastT;
 const toast = msg => { const t = $('toast'); t.innerHTML = icon('check') + esc(msg); t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); };
 
@@ -130,7 +139,7 @@ const R = cur === 'USD' ? 1 : fx[cur] || 0;
 const fmt = n => SYM + ' ' + n.toLocaleString('es-PY', { minimumFractionDigits: DEC, maximumFractionDigits: DEC });
 const gs = usd => R ? fmt(usd * R) : '';
 if (R && motion && !still) motion.animate(0, R, { duration: 1, ease: [.22, 1, .36, 1], onUpdate: v => $('rate').textContent = fmt(v) });
-else $('rate').textContent = R ? fmt(R) : '—';
+else $('rate').textContent = R ? fmt(R) : 'Sin cotización';
 $('fxBtn').title = since(fx.at);
 $('curSym').textContent = SYM;
 $('fxBtn').onclick = () => {
@@ -156,9 +165,9 @@ $('profSave').onclick = async () => {
   await saveProfile(); $('prof').close();
   if (changed) location.reload(); else toast('Guardado');
 };
-const drawLinks = () => $('links').innerHTML = profile.links.map((l, i) => `<a class="lk" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}<button data-del="${i}" aria-label="Quitar">×</button></a>`).join('');
-$('links').onclick = e => { const i = e.target.dataset.del; if (i != null) { e.preventDefault(); profile.links.splice(i, 1); drawLinks(); saveProfile(); } };
-$('addLink').onsubmit = e => { e.preventDefault(); profile.links.push({ name: e.target.name.value, url: e.target.url.value }); e.target.reset(); drawLinks(); saveProfile(); };
+const drawLinks = () => $('links').innerHTML = profile.links.map((l, i) => `<div class="lk"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a><button data-del="${i}" aria-label="Quitar ${esc(l.name)}">${icon('x')}</button></div>`).join('');
+$('links').onclick = e => { const i = e.target.closest('[data-del]')?.dataset.del; if (i != null) { profile.links.splice(i, 1); drawLinks(); saveProfile(); } };
+$('addLink').onsubmit = e => { e.preventDefault(); profile.links.push({ name: e.target.name.value.trim(), url: e.target.url.value }); e.target.reset(); e.target.closest('details').open = false; drawLinks(); saveProfile(); toast('Enlace agregado'); };
 drawLinks();
 
 const used = new Set([...store.get('used'), ...(profile.used || [])]);
@@ -175,7 +184,7 @@ const drawCodes = () => {
        <div class="big">${esc(next.code)}</div>${next.reward ? `<p class="reward">${esc(next.reward)}</p>` : ''}
        <div class="act">${redeemBtn(next.code)}</div>`
     : `<div class="big">Al día</div><p class="reward">${list.length ? 'Todos canjeados. Los nuevos aparecen acá solos.' : 'Sin datos todavía.'}</p>`;
-  $('codes').innerHTML = rest.map(c => `<li class="code">${isNew(c) ? '<span class="new" title="Nuevo"></span>' : ''}<b>${esc(c.code)}</b>${redeemBtn(c.code, 'sm ghost')}</li>`).join('');
+  paged($('codes'), rest, c => `<li class="code">${isNew(c) ? '<span class="new" title="Nuevo"></span>' : ''}<b>${esc(c.code)}</b>${redeemBtn(c.code, 'sm ghost')}</li>`, '');
   $('codes').previousElementSibling.hidden = !rest.length;
   $('done').innerHTML = done.map(c => `<li class="code"><b>${esc(c.code)}</b><button class="btn sm ghost" data-undo="${esc(c.code)}">Deshacer</button></li>`).join('');
   $('doneBox').hidden = !done.length;
@@ -199,34 +208,47 @@ $('v-asphalt').addEventListener('click', async e => {
 
 // Oculto: lo ya visto, en todos los paneles (perfil)
 const hidden = new Set(profile.hidden || []);
-const hide = k => { hidden.add(k); profile.hidden = [...hidden]; saveProfile(); };
+profile.hnames ||= {};
+const redrawAll = [];
+const drawHidden = () => {
+  const keys = [...hidden];
+  $('hidBox').hidden = !keys.length; $('nHid').textContent = keys.length || '';
+  $('hidList').innerHTML = keys.map(k => `<li><span>${esc(profile.hnames[k] || k.slice(1).replace(/^https?:\/\/(www\.)?/, ''))}</span><button class="link" data-show="${esc(k)}" aria-label="Mostrar ${esc(profile.hnames[k] || '')}">Mostrar</button></li>`).join('');
+};
+const unhide = ks => { ks.forEach(k => { hidden.delete(k); delete profile.hnames[k]; }); profile.hidden = [...hidden]; saveProfile(); drawHidden(); redrawAll.forEach(f => f()); };
+$('hidList').onclick = e => { const k = e.target.dataset.show; if (k) unhide([k]); };
+$('hidAll').onclick = () => { unhide([...hidden]); toast('Todo visible'); };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-hide]'); if (!b) return;
-  e.preventDefault(); hide(b.dataset.hide); b.closest('article, .tile')?.remove(); toast('Oculto');
+  e.preventDefault(); const k = b.dataset.hide;
+  hidden.add(k); profile.hidden = [...hidden]; profile.hnames[k] = b.dataset.name || ''; saveProfile();
+  b.closest('article')?.remove(); drawHidden(); toast('Oculto · se recupera en Más');
 });
-const hideBtn = k => `<button class="hide" data-hide="${esc(k)}" aria-label="Ocultar">×</button>`;
+const hideBtn = (k, n = '') => `<button class="hide" data-hide="${esc(k)}" data-name="${esc(n)}" aria-label="Ocultar ${esc(n)}">${icon('x')}</button>`;
+drawHidden();
 // Juegos gratis: Steam y Epic primero; el primero va de portada
 const free = fr.items || [];
 const top = free[0];
 if (top) {
   $('frHero').href = top.url;
   $('frHero').innerHTML = `<div class="bg"><img src="${esc(top.img)}" alt="" fetchpriority="high"></div>
-    <div class="info"><span class="tagline"><span class="pill ac">Gratis</span><span class="pill">${esc(top.store)}</span>${top.worth ? `<s>${esc(top.worth)}</s>` : ''}${top.end ? `<span>hasta ${day(top.end)}</span>` : ''}</span>
+    <div class="info"><span class="tagline"><span class="pill ac">Gratis</span><span class="pill">${esc(top.store)}</span>${top.worth ? `<s>${esc(worth(top.worth))}</s>` : ''}${top.end ? `<span>hasta ${day(top.end)}</span>` : ''}</span>
     <h1>${esc(top.title)}</h1><span class="btn">Conseguir</span></div>`;
 } else $('frHero').hidden = true;
 const groups = ['Todos', ...new Set(free.map(g => g.store))];
 let frStore = 'Todos';
+const worth = w => { const n = num(w); return n == null ? w : money(n); };
 const tile = (url, img, title, pill, sub, key) => `<article class="tile"><a href="${esc(url)}" target="_blank" rel="noopener">
   <div class="art">${img ? `<img loading="lazy" src="${esc(img)}" alt="" width="300" height="169">` : ''}${pill ? `<span class="pill">${esc(pill)}</span>` : ''}</div>
-  <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>${key ? hideBtn(key) : ''}</article>`;
+  <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>${key ? hideBtn(key, title) : ''}</article>`;
 const drawFree = () => {
   $('frChips').innerHTML = groups.length > 2 ? groups.map(s => `<button class="chip" data-s="${esc(s)}" aria-pressed="${s === frStore}">${esc(s)}<i>${s === 'Todos' ? free.length : free.filter(g => g.store === s).length}</i></button>`).join('') : '';
   const list = free.filter(g => !hidden.has('f' + g.url) && (frStore === 'Todos' ? g !== top : g.store === frStore));
-  $('free').innerHTML = list.map(g => tile(g.url, g.img, g.title, g.store, [g.worth && `<s>${esc(g.worth)}</s>`, g.end && `hasta ${day(g.end)}`].filter(Boolean).join(' · '), 'f' + g.url)).join('')
+  $('free').innerHTML = list.map(g => tile(g.url, g.img, g.title, g.store, [g.worth && `<s>${esc(worth(g.worth))}</s>`, g.end && `hasta ${day(g.end)}`].filter(Boolean).join(' · '), 'f' + g.url)).join('')
     || empty(free.length ? 'Nada en esta tienda.' : 'Sin datos todavía.');
 };
 $('frChips').onclick = e => { const s = e.target.closest('[data-s]')?.dataset.s; if (s) { frStore = s; drawFree(); reveal('#free .tile'); } };
-drawFree();
+redrawAll.push(() => drawFree());
 
 // Deseados: precio Steam (región PY) y la tienda más barata, en ₲
 let games = [], wished = new Map(), wishedId = new Set(), wlAt = '', wlMsg = 'Poné tu usuario de Steam en <button class="link" data-prof>Perfil</button> para ver tus deseados.';
