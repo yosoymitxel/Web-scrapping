@@ -371,7 +371,7 @@ const loadWl = async () => {
   const user = (profile.steam || '').trim();
   if (!user) return;
   const c = store.get('panel.wl', null);
-  if (c?.user === user && c.data?.games) { setGames(c.data); drawWl(); drawRails(); if (Date.now() - c.t < 3 * 36e5) return; }
+  if (c?.user === user && c.data?.games) { setGames(c.data); drawWl(); drawRails(); }
   else $('wl').innerHTML = '<div class="skel"></div><div class="skel"></div>';
   try {
     const r = await fetch(`${SB}/functions/v1/steam-wishlist?user=${encodeURIComponent(user)}`);

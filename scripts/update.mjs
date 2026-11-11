@@ -130,6 +130,20 @@ await step('humble', async () => {
     await sleep(300);
   }
   if (![...out.values()].some(b => b.games?.length)) throw new Error('sin juegos en ningún bundle');
+  // ID de Steam de cada juego (buscador de la tienda), reusando los de la corrida anterior
+  const key = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const prevH = await readFile('data/humble.json', 'utf8').then(JSON.parse).catch(() => ({}));
+  const ids = new Map((prevH.items || []).flatMap(b => b.games || []).filter(g => g.steam).map(g => [key(g.n), g.steam]));
+  let found = 0;
+  for (const b of out.values()) for (const g of b.games || []) {
+    if (g.steam) continue;
+    if (ids.has(key(g.n))) { g.steam = ids.get(key(g.n)); continue; }
+    const r = await get(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(g.n)}&cc=us&l=en`).catch(() => null);
+    const hit = r?.items?.find(i => key(i.name) === key(g.n)) || r?.items?.[0];
+    if (hit) { g.steam = hit.id; ids.set(key(g.n), hit.id); found++; }
+    await sleep(200);
+  }
+  console.log('humble steam ids nuevos', found);
   console.log('humble bundles', out.size, 'juegos', [...out.values()].map(b => b.games?.length || 0).join(','));
   return { items: [...out.values()] };
 });
