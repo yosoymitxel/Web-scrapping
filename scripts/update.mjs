@@ -95,6 +95,14 @@ await step('humble', async () => {
       if (cd) { b.endAt = new Date(Date.now() + (((+cd[1] * 24 + +cd[2]) * 60 + +cd[3]) * 60 + +cd[4]) * 1000).toISOString(); b.end = b.endAt.slice(0, 10); }
       b.games = [...games.values()].slice(0, 60);
       if (tl.length) { tl.sort((x, y) => x.price - y.price); b.price = tl[tl.length - 1].price; b.min = tl[0].price; b.tiers = tl; }
+      if (!globalThis.dbgHb2 && !tl.length) {
+        globalThis.dbgHb2 = 1;
+        const flat = [...page.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)].map(x => { try { return JSON.parse('"' + x[1] + '"'); } catch { return ''; } }).join('');
+        const keys = [...new Set([...flat.matchAll(/"([A-Za-z_|]*(?:[Ee]nd|[Tt]ier|[Pp]rice|[Ee]xpir|[Dd]eadline|[Dd]ate)[A-Za-z_|]*)":/g)].map(x => x[1]))];
+        console.log('humble claves', keys.slice(0, 50).join(','));
+        for (const k of keys.slice(0, 14)) { const i = flat.indexOf('"' + k + '":'); console.log('humble valor', k, JSON.stringify(flat.slice(i, i + 160))); }
+        console.log('humble html cuenta', JSON.stringify(txt.match(/.{60}Best Value.{120}/)?.[0]), JSON.stringify(page.match(/.{80}Ends in.{80}/)?.[0]), JSON.stringify(page.match(/.{100}Items.{0,10}\$.{100}/)?.[0]));
+      }
       if (!globalThis.dbgHb) { globalThis.dbgHb = 1; console.log('humble nuevo', b.name, 'juegos', games.size, 'tiers', JSON.stringify(tl), 'fin', b.endAt, 'texto', txt.match(/Offer[^$]{0,60}/)?.[0]); }
       await sleep(300);
       continue;
@@ -130,12 +138,14 @@ await step('humble', async () => {
   console.log('humble imágenes', [...all.values()].filter(g => g.img).length, '/', all.size, [...all.values()].find(g => g.img)?.img);
   // Reusar precios de la corrida anterior (< 24 h): solo se consultan juegos nuevos
   const prev = await readFile('data/humble.json', 'utf8').then(JSON.parse).catch(() => ({}));
-  const known = Date.now() - new Date(prev.at || 0) < 864e5
-    ? new Map((prev.items || []).flatMap(b => b.games || []).filter(g => g.usd != null).map(g => [norm(g.n), g])) : new Map();
+  const fresh = Date.now() - new Date(prev.at || 0) < 864e5;
+  const known = new Map((prev.items || []).flatMap(b => b.games || []).filter(g => g.usd != null).map(g => [norm(g.n), g]));
   const byId = {}; let n = 0;
+  const t0 = Date.now(), BUDGET = (process.env.NOCS ? 0 : 6) * 6e4;
   for (const [k, g] of all) {
     const old = known.get(k);
-    if (old) { Object.assign(g, { usd: old.usd, low: old.low, steam: old.steam }); continue; }
+    if (old && (fresh || Date.now() - t0 > BUDGET)) { Object.assign(g, { usd: old.usd, low: old.low, steam: g.steam || old.steam }); continue; }
+    if (Date.now() - t0 > BUDGET) continue;
     if (!(all.size % 1) && ++n % 20 === 0) console.log('cheapshark', n, '/', all.size);
     const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(g.n)}&limit=10`).catch(() => []);
     const m = hit.find(h => norm(h.external) === k);
@@ -149,6 +159,7 @@ await step('humble', async () => {
     await sleep(300);
   }
   console.log('humble juegos', [...out.values()].map(b => b.games?.length || 0).join(','), 'con img', [...all.values()].filter(g => g.img).length, 'con precio', ids.length, '/', all.size);
+  for (const b of out.values()) for (const g of b.games || []) { const x = all.get(norm(g.n)); if (x && x !== g) Object.assign(g, { usd: x.usd, low: x.low, steam: g.steam || x.steam }); }
   return { items: [...out.values()] };
 });
 
