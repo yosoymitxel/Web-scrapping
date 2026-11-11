@@ -42,13 +42,19 @@ for (const [name, url, re, kind] of S) {
       const alts = [...b.matchAll(/alt="([^"]{2,50})"/g)].map(x => x[1]);
       console.log('  h3/h4/a count', t.length, 'alts', alts.length, '\n  ', [...new Set(t)].slice(10, 25).join(' | '), '\n   alts:', [...new Set(alts)].slice(0, 15).join(' | '));
     }
+    if (['innovagame','visuar','rebuscate','playtest','minecraft'].includes(name)) {
+      console.log('  title:', (b.match(/<title>([\s\S]*?)<\/title>/) || [])[1]);
+      console.log('  ld+json:', [...b.matchAll(/application\/ld\+json[^>]*>([\s\S]{0,250})/g)].slice(0, 3).map(x => x[1].replace(/\s+/g, ' ')).join(' || '));
+      console.log('  priceish:', [...b.matchAll(/.{60}(?:price|precio|Gs|₲|"discount|descuento|status).{80}/gi)].slice(0, 6).map(x => x[0].replace(/\s+/g, ' ')).join('\n    '));
+      console.log('  mc-offer:', (b.match(/.{80}(?:ahorra|save|off|descuento).{80}/i) || [''])[0].replace(/\s+/g, ' '));
+    }
     if (kind === 'play') console.log('  playtest count', (b.match(/"status":"playtest"/g) || []).length);
     if (kind === 'humble') {
       const mm = b.match(/<script id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
       if (!mm) { console.log('  no page-data'); continue; }
       try {
-        const d = JSON.parse(mm[1]); let done = false;
-        walk(d, (o, p) => { if (!done && !Array.isArray(o) && o.human_name) { done = true; console.log('  path', p); for (const [k, v] of Object.entries(o)) console.log('   ', k, '=', typeof v === 'string' ? v.slice(0, 120) : JSON.stringify(v).slice(0, 200)); } });
+        const d = JSON.parse(mm[1]); let n = 0;
+        walk(d, (o, p) => { if (n < 3 && !Array.isArray(o) && o.human_name && !p.endsWith('basic_data')) { n++; console.log('  path', p); for (const [k, v] of Object.entries(o)) console.log('   ', k, '=', typeof v === 'string' ? v.slice(0, 120) : JSON.stringify(v).slice(0, 300)); } });
       } catch (e) { console.log('  parse err', e.message); }
     }
   }
