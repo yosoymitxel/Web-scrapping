@@ -5,9 +5,11 @@ import { writeFile } from 'node:fs/promises';
 const STEAM_ID = '76561198865545057';
 const UA = { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'accept-language': 'es,en;q=0.8' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const get = async (url, as = 'json') => {
+const get = async (url, as = 'json', tries = 3) => {
   // CheapShark responde 400 a UAs de navegador desde servidores
   const r = await fetch(url, { headers: url.includes('cheapshark') ? { 'user-agent': 'panel-precios/1.0' } : UA });
+  // CheapShark limita ráfagas: esperar y reintentar
+  if (r.status === 429 && tries > 1) { await sleep(+(r.headers.get('retry-after') || 0) * 1000 || 8000); return get(url, as, tries - 1); }
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return as === 'json' ? r.json() : r.text();
 };
@@ -46,65 +48,6 @@ await step('free', async () => {
     end: g.end_date === 'N/A' ? '' : g.end_date.slice(0, 10), store: store(g.platforms),
   })).sort((a, b) => (rank[a.store] ?? 2) - (rank[b.store] ?? 2));
   return { items };
-});
-
-await step('humble', async () => {
-  const h = await get('https://www.humblebundle.com/games', 'text');
-  const m = h.match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error('sin JSON en la página');
-  const out = new Map();
-  (function walk(o) {
-    if (!o || typeof o !== 'object') return;
-    if (o.product_url?.startsWith('/games/') && (o.tile_short_name || o.tile_name)) {
-      out.set(o.product_url, {
-        name: o.tile_short_name || o.tile_name,
-        url: 'https://www.humblebundle.com' + o.product_url,
-        img: o.tile_image || o.high_res_tile_image || '',
-        end: (o['end_date|datetime'] || o.end_date || '').slice(0, 10),
-      });
-    }
-    Object.values(o).forEach(walk);
-  })(JSON.parse(m[1]));
-  if (!out.size) throw new Error('JSON sin bundles');
-  // Juegos de cada bundle, para cruzarlos con la lista de deseados
-  for (const b of out.values()) {
-    const page = await get(b.url, 'text').catch(() => '');
-    const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
-    if (!j) continue;
-    const items = new Map(); let price = 0;
-    (function walk(o) {
-      if (!o || typeof o !== 'object') return;
-      if (o.human_name && o.machine_name && !o.tier_order && !items.has(o.human_name)) {
-        // La imagen viene en distintas claves según el ítem: la primera URL de imagen que aparezca
-        const img = Object.entries(o).find(([k, v]) => /image/i.test(k) && typeof v === 'string' && /^https?:/.test(v))?.[1] || '';
-        items.set(o.human_name, { n: o.human_name, img });
-      }
-      if (o.price?.amount && o.price?.currency === 'USD') price = Math.max(price, +o.price.amount);
-      Object.values(o).forEach(walk);
-    })(JSON.parse(j[1]));
-    b.games = [...items.values()].filter(g => g.n !== b.name && !/charity|plan\b|subscription|donat/i.test(g.n)).slice(0, 60);
-    if (price) b.price = price;
-    await sleep(300);
-  }
-  // Precio actual más bajo y mínimo histórico de cada juego (CheapShark), como en deseados
-  const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const all = new Map();
-  for (const b of out.values()) for (const g of b.games || []) all.set(norm(g.n), g);
-  const byId = {};
-  for (const [k, g] of all) {
-    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(g.n)}&limit=10`).catch(() => []);
-    const m = hit.find(h => norm(h.external) === k);
-    if (m) { g.usd = +m.cheapest; g.steam = +m.steamAppID || undefined; byId[m.gameID] = g; }
-    await sleep(250);
-  }
-  const ids = Object.keys(byId);
-  for (let i = 0; i < ids.length; i += 25) {
-    const info = await get(`https://www.cheapshark.com/api/1.0/games?ids=${ids.slice(i, i + 25).join(',')}`).catch(() => ({}));
-    for (const [gid, { cheapestPriceEver: low }] of Object.entries(info)) if (low?.price) byId[gid].low = +low.price;
-    await sleep(300);
-  }
-  console.log('humble juegos', [...out.values()].map(b => b.games?.length || 0).join(','), 'con img', [...all.values()].filter(g => g.img).length, 'con precio', ids.length, '/', all.size);
-  return { items: [...out.values()] };
 });
 
 await step('wishlist', async () => {
@@ -158,6 +101,66 @@ await step('wishlist', async () => {
   if (!games.length) throw new Error('lista vacía o privada');
   return { games };
 });
+await step('humble', async () => {
+  const h = await get('https://www.humblebundle.com/games', 'text');
+  const m = h.match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) throw new Error('sin JSON en la página');
+  const out = new Map();
+  (function walk(o) {
+    if (!o || typeof o !== 'object') return;
+    if (o.product_url?.startsWith('/games/') && (o.tile_short_name || o.tile_name)) {
+      out.set(o.product_url, {
+        name: o.tile_short_name || o.tile_name,
+        url: 'https://www.humblebundle.com' + o.product_url,
+        img: o.tile_image || o.high_res_tile_image || '',
+        end: (o['end_date|datetime'] || o.end_date || '').slice(0, 10),
+      });
+    }
+    Object.values(o).forEach(walk);
+  })(JSON.parse(m[1]));
+  if (!out.size) throw new Error('JSON sin bundles');
+  // Juegos de cada bundle, para cruzarlos con la lista de deseados
+  for (const b of out.values()) {
+    const page = await get(b.url, 'text').catch(() => '');
+    const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
+    if (!j) continue;
+    const items = new Map(); let price = 0;
+    (function walk(o) {
+      if (!o || typeof o !== 'object') return;
+      if (o.human_name && o.machine_name && !o.tier_order && !items.has(o.human_name)) {
+        // La imagen viene en distintas claves según el ítem: la primera URL de imagen que aparezca
+        const img = Object.entries(o).find(([k, v]) => /image/i.test(k) && typeof v === 'string' && /^https?:/.test(v))?.[1] || '';
+        if (!items.size && !img) console.log('humble claves', Object.keys(o).join(','));
+        items.set(o.human_name, { n: o.human_name, img });
+      }
+      if (o.price?.amount && o.price?.currency === 'USD') price = Math.max(price, +o.price.amount);
+      Object.values(o).forEach(walk);
+    })(JSON.parse(j[1]));
+    b.games = [...items.values()].filter(g => g.n !== b.name && !/charity|plan\b|subscription|donat/i.test(g.n)).slice(0, 60);
+    if (price) b.price = price;
+    await sleep(300);
+  }
+  // Precio actual más bajo y mínimo histórico de cada juego (CheapShark), como en deseados
+  const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const all = new Map();
+  for (const b of out.values()) for (const g of b.games || []) all.set(norm(g.n), g);
+  const byId = {};
+  for (const [k, g] of all) {
+    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(g.n)}&limit=10`).catch(() => []);
+    const m = hit.find(h => norm(h.external) === k);
+    if (m) { g.usd = +m.cheapest; g.steam = +m.steamAppID || undefined; byId[m.gameID] = g; }
+    await sleep(250);
+  }
+  const ids = Object.keys(byId);
+  for (let i = 0; i < ids.length; i += 25) {
+    const info = await get(`https://www.cheapshark.com/api/1.0/games?ids=${ids.slice(i, i + 25).join(',')}`).catch(() => ({}));
+    for (const [gid, { cheapestPriceEver: low }] of Object.entries(info)) if (low?.price) byId[gid].low = +low.price;
+    await sleep(300);
+  }
+  console.log('humble juegos', [...out.values()].map(b => b.games?.length || 0).join(','), 'con img', [...all.values()].filter(g => g.img).length, 'con precio', ids.length, '/', all.size);
+  return { items: [...out.values()] };
+});
+
 
 // Ofertas vigiladas: la página solo se muestra si anuncia descuento
 await step('watch', async () => {
@@ -190,6 +193,7 @@ await step('playtest', async () => {
 // Cartelera (cines.com.py): película → cines y horarios
 await step('cines', async () => {
   const home = await get('https://www.cines.com.py/cine/2--Ita%C3%BA%20Cinema%20Pop%20del%20Sol', 'text');
+  console.log('cines html', home.length, (home.match(/cartelera_cuadro/g) || []).length, home.slice(0, 200).replace(/\s+/g, ' '));
   const cines = [...new Map([...home.matchAll(/href="(https:\/\/www\.cines\.com\.py\/cine\/(\d+)--[^"#]+)"/g)].map(m => [m[2], m[1]])).entries()];
   const movies = new Map();
   for (const [, url] of cines) {
