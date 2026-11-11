@@ -12,7 +12,9 @@ const get = async (url, as = 'json', tries = 3) => {
   return as === 'json' ? r.json() : r.text();
 };
 const save = (name, data) => writeFile(`data/${name}.json`, JSON.stringify({ at: new Date().toISOString(), ...data }));
-const clean = s => s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+const dec = s => s.replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+  .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+const clean = s => dec(s.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
 const step = async (name, fn) => {
   if (process.env.ONLY && !process.env.ONLY.split(',').includes(name)) return;
   try { await save(name, await fn()); console.log('ok', name); }
@@ -184,7 +186,7 @@ await step('playtest', async () => {
   const h = (await get('https://playtestgames.net/', 'text')).replace(/\\"/g, '"');
   const items = new Map();
   for (const m of h.matchAll(/"appId":"(\d+)"[^{}]*?"name":"([^"]+)"[\s\S]{0,400}?"status":"(\w+)"[\s\S]{0,200}?"image":"([^"]+)"/g))
-    if (!items.has(m[1])) items.set(m[1], { id: +m[1], name: m[2].replace(/\\u([0-9a-f]{4})/gi, (_, c) => String.fromCharCode(parseInt(c, 16))), status: m[3], img: m[4] });
+    if (!items.has(m[1])) items.set(m[1], { id: +m[1], name: dec(m[2].replace(/\\u([0-9a-f]{4})/gi, (_, c) => String.fromCharCode(parseInt(c, 16)))), status: m[3], img: m[4] });
   if (!items.size) throw new Error('sin juegos');
   console.log('playtest', items.size, [...items.values()].filter(i => i.status === 'playtest').length);
   return { items: [...items.values()] };
