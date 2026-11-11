@@ -30,7 +30,7 @@ async function rawGet(host: string, path: string): Promise<string> {
   await conn.write(new TextEncoder().encode(`GET ${path} HTTP/1.0\r\nHost: ${host}\r\nUser-Agent: ${BROWSER}\r\nAccept: text/html\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n`));
   const chunks: Uint8Array[] = [];
   const buf = new Uint8Array(65536);
-  for (let n = await conn.read(buf); n; n = await conn.read(buf)) chunks.push(buf.slice(0, n));
+  try { for (let n = await conn.read(buf); n; n = await conn.read(buf)) chunks.push(buf.slice(0, n)); } catch { /* cierre sin close_notify */ }
   try { conn.close(); } catch { /* ya cerrada */ }
   const all = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
   let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
