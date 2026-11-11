@@ -14,6 +14,7 @@ const get = async (url, as = 'json', tries = 3) => {
 const save = (name, data) => writeFile(`data/${name}.json`, JSON.stringify({ at: new Date().toISOString(), ...data }));
 const clean = s => s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 const step = async (name, fn) => {
+  if (process.env.ONLY && !process.env.ONLY.split(',').includes(name)) return;
   try { await save(name, await fn()); console.log('ok', name); }
   catch (e) { console.error('fallo', name, e.message); process.exitCode = 1; }
 };
