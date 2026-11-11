@@ -81,8 +81,12 @@ await step('wishlist', async () => {
     const r = await get(`https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=${encodeURIComponent(JSON.stringify(input))}`);
     for (const s of r.response.store_items || []) {
       const p = s.best_purchase_option;
+      const a = s.assets;
       games.push({
         id: s.appid, name: s.name,
+        img: a?.asset_url_format && a.small_capsule
+          ? 'https://shared.akamai.steamstatic.com/store_item_assets/' + a.asset_url_format.replace('${FILENAME}', a.small_capsule)
+          : `https://cdn.akamai.steamstatic.com/steam/apps/${s.appid}/capsule_231x87.jpg`,
         usd: p?.final_price_in_cents != null ? +p.final_price_in_cents / 100 : null,
         off: p?.discount_pct || 0,
         free: !!s.is_free,

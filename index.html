@@ -3,123 +3,88 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mi panel</title>
-<style>
-:root{--bg:#0f1115;--card:#181b22;--line:#262a33;--tx:#e8eaf0;--mut:#8a90a0;--ac:#7cc4ff;--ok:#5fd38d}
-@media (prefers-color-scheme:light){:root{--bg:#f4f2ee;--card:#fff;--line:#e2ded6;--tx:#1c1c1c;--mut:#6b6b6b;--ac:#0b62a8;--ok:#1d7a45}.Steam{background:#d6e6f5!important}.Epic{background:#e4e4e4!important}button:hover{background:#d8d4cc!important}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,sans-serif}
-main{max-width:1100px;margin:auto;padding:16px;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
-section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
-section.wide{grid-column:1/-1}
-h2{margin:0 0 10px;font-size:15px;display:flex;gap:8px;align-items:center}
-h2 small{color:var(--mut);font-weight:400;margin-left:auto;font-size:12px}
-a{color:var(--ac);text-decoration:none}
-input{background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 10px;font:inherit;width:100%;min-width:0}
-button{background:var(--line);color:var(--tx);border:0;border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer}
-button:hover{background:#333846}
-.codes{display:flex;flex-wrap:wrap;gap:6px}
-.code{max-width:100%;word-break:break-all;display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 4px 4px 10px;font:13px ui-monospace,monospace}
-.code.done{opacity:.35;text-decoration:line-through}
-.fx{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-top:10px}
-.big{font-size:28px;font-weight:600}.mut{color:var(--mut);font-size:12px}
-.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
-.g{background:var(--bg);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;color:var(--tx)}
-.g img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:var(--line)}
-.g>div{padding:8px;font-size:13px;display:flex;flex-direction:column;gap:4px;flex:1}
-.tag{font-size:11px;padding:1px 6px;border-radius:5px;background:var(--line);align-self:flex-start}
-.Steam{background:#1b3a5a}.Epic{background:#444}
-.off{color:var(--ok);font-weight:600}
-.links{display:flex;gap:8px;font-size:12px;margin-top:auto}
-.row{display:flex;gap:8px}
-.list{display:flex;flex-direction:column;gap:4px;margin-top:8px}
-.pr{color:var(--tx);font-size:13px;padding:6px 8px;background:var(--bg);border-radius:8px}
-</style>
+<meta name="color-scheme" content="light dark">
+<title>Panel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f7b5f'/%3E%3Cpath d='M9 22V10h7a4 4 0 0 1 0 8h-7' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
+ <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+ <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+ <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+</svg>
+
+<header class="top">
+ <div class="bar">
+  <strong class="brand">Panel</strong>
+  <button class="fx" id="fxBtn" aria-expanded="false" aria-controls="fxBox">
+   <span class="mut">USD</span> <b id="rate">—</b>
+  </button>
+ </div>
+ <div class="conv" id="fxBox" hidden>
+  <label><span>USD</span><input id="usd" type="number" inputmode="decimal" min="0" step="any"></label>
+  <svg class="ic"><use href="#i-swap"/></svg>
+  <label><span>₲</span><input id="pyg" type="number" inputmode="numeric" min="0" step="any"></label>
+ </div>
+ <nav class="tabs" role="tablist">
+  <a href="#asphalt" role="tab">Asphalt <span class="count" id="nAs"></span></a>
+  <a href="#juegos" role="tab">Juegos</a>
+  <a href="#tarjetas" role="tab">Tarjetas</a>
+ </nav>
+</header>
+
 <main>
- <section>
-  <h2>Asphalt <small id="asAt"></small></h2>
-  <div class="codes" id="codes"></div>
+ <section id="asphalt" class="view">
+  <div class="head"><h1>Códigos</h1><span class="mut" id="asAt"></span><button class="btn ghost" id="allDone" hidden>Marcar todos como canjeados</button></div>
+  <ul class="codes" id="codes"></ul>
+  <details class="done-box" id="doneBox" hidden>
+   <summary>Canjeados <span id="nDone"></span></summary>
+   <ul class="codes" id="done"></ul>
+  </details>
  </section>
- <section>
-  <h2>Dólar <small id="fxAt"></small></h2>
-  <div class="big" id="rate">—</div>
-  <div class="fx"><input id="usd" type="number" inputmode="decimal" placeholder="USD">⇄<input id="pyg" type="number" inputmode="numeric" placeholder="₲"></div>
+
+ <section id="juegos" class="view">
+  <div class="seg" role="tablist" id="seg">
+   <button data-s="gratis" aria-selected="true">Gratis</button>
+   <button data-s="deseados" aria-selected="false">Deseados</button>
+   <button data-s="bundles" aria-selected="false">Bundles</button>
+  </div>
+
+  <div data-p="gratis">
+   <div class="head"><div class="chips" id="frChips"></div><span class="mut" id="frAt"></span></div>
+   <div class="grid" id="free"></div>
+  </div>
+
+  <div data-p="deseados" hidden>
+   <div class="head">
+    <label class="search"><svg class="ic"><use href="#i-search"/></svg><input id="wlq" placeholder="Buscar" aria-label="Buscar en deseados"></label>
+    <label class="toggle"><input type="checkbox" id="wlSale"> En oferta</label>
+   </div>
+   <ul class="rows" id="wl"></ul>
+   <p class="mut foot" id="wlAt"></p>
+  </div>
+
+  <div data-p="bundles" hidden>
+   <div class="head"><a class="mut" href="https://www.humblebundle.com/games" target="_blank" rel="noopener">Humble Bundle</a><span class="mut" id="hbAt"></span></div>
+   <div class="grid" id="hb"></div>
+  </div>
  </section>
- <section>
-  <h2>Descuentos</h2>
-  <form class="row" id="tq"><input name="q" placeholder="Comercio" autocomplete="off"><button>Buscar</button></form>
-  <div id="promos" class="list"></div>
-  <p class="mut"><a id="tjt" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Tarjeteá</a> · <a href="https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/" target="_blank" rel="noopener">PromoScraper</a></p>
- </section>
- <section class="wide">
-  <h2>Gratis <small id="frAt"></small></h2>
-  <div class="grid" id="free"></div>
- </section>
- <section class="wide">
-  <h2>Deseados <small id="wlAt"></small></h2>
-  <input id="wlf" placeholder="Filtrar" style="margin-bottom:10px">
-  <div class="grid" id="wl"></div>
+
+ <section id="tarjetas" class="view">
+  <form id="tq" class="search big" role="search">
+   <svg class="ic"><use href="#i-search"/></svg>
+   <input name="q" placeholder="Comercio" autocomplete="off" aria-label="Comercio">
+  </form>
+  <div class="chips" id="recent"></div>
+  <ul class="rows" id="promos"></ul>
+  <p class="foot mut"><a id="tjt" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá</a></p>
  </section>
 </main>
-<script type="module">
-const REDEEM = 'https://www.gameloft.com/redeem/asphalt-legends?playerId=u-79g1efe';
-const $ = id => document.getElementById(id);
-const load = n => fetch(`data/${n}.json?${Date.now()}`).then(r => r.json()).catch(() => ({}));
-const ago = iso => iso ? new Intl.RelativeTimeFormat('es', { numeric: 'auto' }).format(-Math.round((Date.now() - new Date(iso)) / 36e5), 'hour') : '';
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
-const ls = { get: k => { try { return JSON.parse(localStorage[k] || '[]') } catch { return [] } }, set: (k, v) => { try { localStorage[k] = JSON.stringify(v) } catch {} } };
-const gs = n => '₲ ' + Math.round(n).toLocaleString('es-PY');
 
-const [as, fx, fr, wl] = await Promise.all(['asphalt', 'fx', 'free', 'wishlist'].map(load));
-
-// Asphalt: copia el código, abre el canje y lo tacha
-const used = new Set(ls.get('used'));
-$('asAt').textContent = ago(as.at);
-$('codes').innerHTML = (as.codes || []).map(c => `<span class="code ${used.has(c.code) ? 'done' : ''}" title="${esc(c.reward)}">${esc(c.code)}<button data-c="${esc(c.code)}" aria-label="Copiar y canjear">Canjear</button></span>`).join('');
-$('codes').onclick = async e => {
-  const c = e.target.dataset.c; if (!c) return;
-  await navigator.clipboard.writeText(c).catch(() => {});
-  open(REDEEM, 'gameloft');
-  used.add(c); ls.set('used', [...used]); e.target.parentElement.classList.add('done');
-};
-
-const R = fx.PYG || 0;
-$('fxAt').textContent = ago(fx.at);
-$('rate').textContent = R ? gs(R) : '—';
-$('usd').oninput = e => $('pyg').value = e.target.value ? Math.round(e.target.value * R) : '';
-$('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).toFixed(2) : '';
-
-const PROMOS = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/promos.json';
-let promos;
-$('tq').onsubmit = async e => {
-  e.preventDefault();
-  const q = e.target.q.value.trim().toLowerCase(); if (!q) return;
-  $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
-  promos ??= await fetch(PROMOS).then(r => r.json()).catch(() => []);
-  const hit = promos.filter(p => (p.title + ' ' + p.desc).toLowerCase().includes(q))
-    .sort((a, b) => (b.discount_percent || 0) - (a.discount_percent || 0)).slice(0, 12);
-  $('promos').innerHTML = hit.map(p => `<a class="pr" href="${esc(p.href)}" target="_blank" rel="noopener"><b>${esc(p.bankShort)}</b> ${esc(p.title)} <span class="off">${p.discount_percent ? p.discount_percent + '%' : ''}</span> <span class="mut">${esc((p.days || []).join(' '))}</span></a>`).join('')
-    || '<p class="mut">Sin promos en PromoScraper; probá en Tarjeteá</p>';
-};
-
-$('frAt').textContent = ago(fr.at);
-$('free').innerHTML = (fr.items || []).map(g => `<a class="g" href="${esc(g.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(g.img)}" alt=""><div><span class="tag ${esc(g.store)}">${esc(g.store)}</span>${esc(g.title)}${g.end && g.end !== 'N/A' ? `<span class="mut">${esc(g.end.slice(0, 10))}</span>` : ''}</div></a>`).join('');
-
-$('wlAt').textContent = ago(wl.at);
-const card = g => {
-  const q = encodeURIComponent(g.name);
-  return `<div class="g"><a href="https://store.steampowered.com/app/${g.id}" target="_blank" rel="noopener"><img loading="lazy" src="https://cdn.cloudflare.steamstatic.com/steam/apps/${g.id}/header.jpg" alt=""></a><div>
-  <span>${esc(g.name)}</span>
-  <span>${g.off ? `<span class="off">-${g.off}%</span> ` : ''}${g.usd != null ? `$${g.usd}${R ? ` <span class="mut">${gs(g.usd * R)}</span>` : ''}` : '<span class="mut">—</span>'}</span>
-  ${g.best ? `<a href="${esc(g.best.url)}" target="_blank" rel="noopener">${esc(g.best.store)} $${g.best.usd}${R ? ` <span class="mut">${gs(g.best.usd * R)}</span>` : ''}</a>` : ''}
-  <span class="links"><a href="https://steamdb.info/app/${g.id}/" target="_blank" rel="noopener">SteamDB</a><a href="https://www.eneba.com/latam/store/all?text=${q}" target="_blank" rel="noopener">Eneba</a><a href="https://www.humblebundle.com/store/search?search=${q}" target="_blank" rel="noopener">Humble</a></span>
-  </div></div>`;
-};
-const empty = m => `<p class="mut">${m}</p>`;
-const drawWl = f => $('wl').innerHTML = (wl.games || []).filter(g => g.name.toLowerCase().includes(f)).map(card).join('') || empty(wl.games ? 'Sin coincidencias' : 'Sin datos: Actions → update');
-$('wlf').oninput = e => drawWl(e.target.value.toLowerCase());
-drawWl('');
-</script>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="app.js"></script>
 </body>
 </html>
