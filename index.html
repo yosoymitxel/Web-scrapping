@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1794407055">
+<link rel="stylesheet" href="style.css?v=1794407302">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -154,11 +154,17 @@
    <label class="field"><span>Moneda de conversión</span><select id="curSel"></select></label>
    <div><span class="lbl">Mis bancos y tarjetas</span><div class="chips" id="profBanks"></div></div>
   </div>
+  <div class="stack">
+   <h3 class="sec">Avisos</h3>
+   <p class="mut" id="pushMsg">Te avisa en este aparato cuando hay algo nuevo, aunque no tengas el panel abierto.</p>
+   <div class="chips" id="notifyChips"></div>
+   <div><button class="btn sm" id="pushOn" type="button">Activar avisos</button> <button class="btn sm ghost" id="pushOff" type="button" hidden>Desactivar</button></div>
+  </div>
   <div class="tools wrap"><button class="btn sm" id="profSave">Guardar</button><button class="btn sm ghost" id="profHid" type="button">Ocultos</button><button class="btn sm ghost" id="logout" hidden>Salir</button></div>
  </div>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1794407055"></script>
+<script type="module" src="app.js?v=1794407302"></script>
 </body>
 </html>

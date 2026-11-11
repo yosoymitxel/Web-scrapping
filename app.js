@@ -556,3 +556,35 @@ $('sedeSel').onchange = e => { fl.s = e.target.value; drawCine(); reveal('#movie
 $('genreChips').onclick = e => { const b = e.target.closest('[data-g]'); if (!b) return; fl.g = b.dataset.g; drawCine(); reveal('#movies .movie'); };
 drawCine();
 $('cnAt').textContent = since(cn.at);
+
+// Avisos push: la suscripción y qué avisar quedan en el perfil (Supabase); la función notify manda lo nuevo cada 3 h
+const VAPID = 'BG17L2huPA1iogOFzXIsFRfosZEWDv2yy7GwhwsXbKSF158zzrmVVsCRnEmFFaDC233cUqO8eP4bzAy7f_v2F7s';
+const NOTIFY = [['sale', 'Deseados en oferta'], ['bundles', 'Deseados en bundles'], ['playtest', 'Deseados con demo/playtest'], ['free', 'Juegos gratis'], ['watch', 'Ofertas vigiladas'], ['asphalt', 'Códigos de Asphalt']];
+profile.notify ??= { sale: true, bundles: true, playtest: true, free: true, watch: true, asphalt: false };
+const b64 = s => Uint8Array.from(atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const canPush = 'serviceWorker' in navigator && 'PushManager' in window;
+const drawNotify = () => {
+  $('notifyChips').innerHTML = NOTIFY.map(([k, l]) => `<button class="chip" type="button" data-n="${k}" aria-pressed="${!!profile.notify[k]}">${l}</button>`).join('');
+  const on = !!profile.push && Notification.permission === 'granted';
+  $('pushOn').hidden = on; $('pushOff').hidden = !on;
+  $('pushMsg').textContent = !canPush ? 'Este navegador no permite avisos. En iPhone: agregá el panel a la pantalla de inicio.'
+    : !sess ? 'Entrá con tu cuenta para recibir avisos.'
+    : on ? 'Avisos activos en este aparato. Elegí de qué:' : 'Te avisa en este aparato cuando hay algo nuevo, aunque no tengas el panel abierto.';
+  $('pushOn').disabled = !canPush || !sess;
+};
+$('notifyChips').onclick = e => { const k = e.target.closest('[data-n]')?.dataset.n; if (!k) return; profile.notify[k] = !profile.notify[k]; saveProfile(); drawNotify(); };
+$('pushOn').onclick = async () => {
+  try {
+    if (await Notification.requestPermission() !== 'granted') return toast('Permiso de avisos denegado');
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(VAPID) });
+    profile.push = sub.toJSON(); await saveProfile(); drawNotify(); toast('Avisos activados');
+  } catch (e) { toast('No se pudo activar: ' + e.message); }
+};
+$('pushOff').onclick = async () => {
+  const reg = await navigator.serviceWorker.getRegistration();
+  await (await reg?.pushManager.getSubscription())?.unsubscribe();
+  delete profile.push; await saveProfile(); drawNotify(); toast('Avisos desactivados');
+};
+if (canPush) drawNotify(); else { $('notifyChips').innerHTML = ''; $('pushOn').disabled = true; $('pushMsg').textContent = 'Este navegador no permite avisos. En iPhone: agregá el panel a la pantalla de inicio.'; }
