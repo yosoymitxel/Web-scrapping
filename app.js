@@ -49,9 +49,9 @@ $('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).t
 const views = ['asphalt', 'juegos', 'tarjetas'];
 const route = () => {
   const v = views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'asphalt';
-  views.forEach(id => $(id).classList.toggle('on', id === v));
+  views.forEach(id => $('v-' + id).classList.toggle('on', id === v));
   document.querySelectorAll('.tabs a').forEach(a => a.hash === '#' + v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
-  reveal(`#${v} .hero, #${v} .row-head, #${v} .code, #${v} .tile, #${v} .game, #${v} .promo`);
+  reveal(['.hero', '.row-head', '.code', '.tile', '.game', '.promo'].map(c => `#v-${v} ${c}`).join());
   scrollTo({ top: 0 });
 };
 addEventListener('hashchange', route);
@@ -82,7 +82,7 @@ const drawCodes = () => {
 drawCodes();
 store.set('seen', (as.codes || []).map(c => c.code));
 $('allDone').onclick = () => { (as.codes || []).forEach(c => used.add(c.code)); store.set('used', [...used]); drawCodes(); toast('Todos marcados'); };
-$('asphalt').addEventListener('click', async e => {
+$('v-asphalt').addEventListener('click', async e => {
   const b = e.target.closest('button[data-c], button[data-undo]'); if (!b) return;
   if (b.dataset.c) {
     await navigator.clipboard.writeText(b.dataset.c).catch(() => {});
