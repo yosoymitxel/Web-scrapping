@@ -6,6 +6,7 @@
 <title>Mi panel</title>
 <style>
 :root{--bg:#0f1115;--card:#181b22;--line:#262a33;--tx:#e8eaf0;--mut:#8a90a0;--ac:#7cc4ff;--ok:#5fd38d}
+@media (prefers-color-scheme:light){:root{--bg:#f4f2ee;--card:#fff;--line:#e2ded6;--tx:#1c1c1c;--mut:#6b6b6b;--ac:#0b62a8;--ok:#1d7a45}.Steam{background:#d6e6f5!important}.Epic{background:#e4e4e4!important}button:hover{background:#d8d4cc!important}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,sans-serif}
 main{max-width:1100px;margin:auto;padding:16px;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr))}
 section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
@@ -35,25 +36,25 @@ button:hover{background:#333846}
 <body>
 <main>
  <section>
-  <h2>🏎️ Asphalt <small id="asAt"></small></h2>
+  <h2>Asphalt <small id="asAt"></small></h2>
   <div class="codes" id="codes"></div>
  </section>
  <section>
-  <h2>💵 Dólar <small id="fxAt"></small></h2>
+  <h2>Dólar <small id="fxAt"></small></h2>
   <div class="big" id="rate">—</div>
   <div class="fx"><input id="usd" type="number" inputmode="decimal" placeholder="USD">⇄<input id="pyg" type="number" inputmode="numeric" placeholder="₲"></div>
  </section>
  <section>
-  <h2>💳 Descuentos</h2>
-  <form class="row" id="tq"><input name="q" placeholder="Comercio" autocomplete="off"><button>↗</button></form>
+  <h2>Descuentos</h2>
+  <form class="row" id="tq"><input name="q" placeholder="Comercio" autocomplete="off"><button>Buscar</button></form>
   <p class="mut"><a href="https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/" target="_blank" rel="noopener">PromoScraper</a></p>
  </section>
  <section class="wide">
-  <h2>🎁 Gratis <small id="frAt"></small></h2>
+  <h2>Gratis <small id="frAt"></small></h2>
   <div class="grid" id="free"></div>
  </section>
  <section class="wide">
-  <h2>⭐ Deseados <small id="wlAt"></small></h2>
+  <h2>Deseados <small id="wlAt"></small></h2>
   <input id="wlf" placeholder="Filtrar" style="margin-bottom:10px">
   <div class="grid" id="wl"></div>
  </section>
@@ -72,7 +73,7 @@ const [as, fx, fr, wl] = await Promise.all(['asphalt', 'fx', 'free', 'wishlist']
 // Asphalt: copia el código, abre el canje y lo tacha
 const used = new Set(ls.get('used'));
 $('asAt').textContent = ago(as.at);
-$('codes').innerHTML = (as.codes || []).map(c => `<span class="code ${used.has(c.code) ? 'done' : ''}" title="${esc(c.reward)}">${esc(c.code)}<button data-c="${esc(c.code)}" aria-label="Copiar y canjear">⧉ ↗</button></span>`).join('');
+$('codes').innerHTML = (as.codes || []).map(c => `<span class="code ${used.has(c.code) ? 'done' : ''}" title="${esc(c.reward)}">${esc(c.code)}<button data-c="${esc(c.code)}" aria-label="Copiar y canjear">Canjear</button></span>`).join('');
 $('codes').onclick = async e => {
   const c = e.target.dataset.c; if (!c) return;
   await navigator.clipboard.writeText(c).catch(() => {});
@@ -89,7 +90,7 @@ $('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).t
 $('tq').onsubmit = e => { e.preventDefault(); open('https://tarjetea.com.py/stores?q=' + encodeURIComponent(e.target.q.value)); };
 
 $('frAt').textContent = ago(fr.at);
-$('free').innerHTML = (fr.items || []).map(g => `<a class="g" href="${esc(g.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(g.img)}" alt=""><div><span class="tag ${esc(g.store)}">${esc(g.store)}</span>${esc(g.title)}${g.end && g.end !== 'N/A' ? `<span class="mut">⏳ ${esc(g.end.slice(0, 10))}</span>` : ''}</div></a>`).join('');
+$('free').innerHTML = (fr.items || []).map(g => `<a class="g" href="${esc(g.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(g.img)}" alt=""><div><span class="tag ${esc(g.store)}">${esc(g.store)}</span>${esc(g.title)}${g.end && g.end !== 'N/A' ? `<span class="mut">${esc(g.end.slice(0, 10))}</span>` : ''}</div></a>`).join('');
 
 $('wlAt').textContent = ago(wl.at);
 const card = g => {
@@ -100,7 +101,8 @@ const card = g => {
   <span class="links"><a href="https://steamdb.info/app/${g.id}/" target="_blank" rel="noopener">SteamDB</a><a href="https://www.eneba.com/latam/store/all?text=${q}" target="_blank" rel="noopener">Eneba</a><a href="https://www.humblebundle.com/store/search?search=${q}" target="_blank" rel="noopener">Humble</a></span>
   </div></div>`;
 };
-const drawWl = f => $('wl').innerHTML = (wl.games || []).filter(g => g.name.toLowerCase().includes(f)).map(card).join('');
+const empty = m => `<p class="mut">${m}</p>`;
+const drawWl = f => $('wl').innerHTML = (wl.games || []).filter(g => g.name.toLowerCase().includes(f)).map(card).join('') || empty(wl.games ? 'Sin coincidencias' : 'Sin datos: Actions → update');
 $('wlf').oninput = e => drawWl(e.target.value.toLowerCase());
 drawWl('');
 </script>
