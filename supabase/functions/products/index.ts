@@ -22,6 +22,24 @@ const html = async (url: string, ua = BROWSER) => {
   return r.text();
 };
 
+// Contimarket envía una cabecera que el cliente de fetch rechaza: HTTP/1.0 a mano sobre TLS.
+async function rawGet(host: string, path: string): Promise<string> {
+  const ctl = AbortSignal.timeout(8000);
+  const conn = await Deno.connectTls({ hostname: host, port: 443 });
+  ctl.addEventListener('abort', () => { try { conn.close(); } catch { /* ya cerrada */ } });
+  await conn.write(new TextEncoder().encode(`GET ${path} HTTP/1.0\r\nHost: ${host}\r\nUser-Agent: ${BROWSER}\r\nAccept: text/html\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n`));
+  const chunks: Uint8Array[] = [];
+  const buf = new Uint8Array(65536);
+  for (let n = await conn.read(buf); n; n = await conn.read(buf)) chunks.push(buf.slice(0, n));
+  try { conn.close(); } catch { /* ya cerrada */ }
+  const all = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
+  let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const txt = new TextDecoder().decode(all);
+  const i = txt.indexOf('\r\n\r\n');
+  if (!/^HTTP\/1\.[01] 200/.test(txt)) throw new Error('raw ' + txt.slice(0, 20));
+  return txt.slice(i + 4);
+}
+
 function jsonObjectsAround(b: string, marker: string): unknown[] {
   const out: unknown[] = [];
   let from = 0;
@@ -48,7 +66,8 @@ function jsonObjectsAround(b: string, marker: string): unknown[] {
 }
 
 async function contimarket(q: string): Promise<P[]> {
-  const b = await html('https://www.contimarket.com/search?Box=False&q=' + encodeURIComponent(q));
+  const path = '/search?Box=False&q=' + encodeURIComponent(q);
+  const b = await html('https://www.contimarket.com' + path).catch(() => rawGet('www.contimarket.com', path));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (jsonObjectsAround(b, '"ProductPrice"') as any[]).map(o => done('Contimarket', ent(o.Name || ''), Math.round(o.ProductPrice?.PriceValue || 0), Math.round(o.ProductPrice?.OldPriceValue || 0), o.DefaultPictureModel?.ImageUrl || '', o.Url || '')).filter(Boolean) as P[];
 }
