@@ -90,17 +90,17 @@ await step('humble', async () => {
         const n = clean(alt || '') || clean(li.replace(/<img[^>]*>/g, ' ')).replace(/\s*MSRP.*$/, '');
         if (n && !games.has(n)) games.set(n, { n, img: src ? decodeURIComponent(src) : '' });
       }
-      const tl = [...txt.matchAll(/(\d+) Items\s*\$([\d,.]+)\s*\$([\d,.]+)/g)].map(x => ({ n: +x[1], msrp: +x[2].replace(/,/g, ''), price: +x[3].replace(/,/g, '') }));
+      // El payload de Next trae bundlePage: {endDate, tiers:[{price:{amount}}]}
+      const flat = [...page.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)].map(x => { try { return JSON.parse('"' + x[1] + '"'); } catch { return ''; } }).join('');
+      const seg = flat.slice(Math.max(0, flat.indexOf('"bundlePage":')));
+      const ed = seg.match(/"endDate":"([^"]+)"/)?.[1];
+      if (ed) { b.endAt = ed; b.end = ed.slice(0, 10); }
+      const tl = [...new Set([...seg.slice(Math.max(0, seg.indexOf('"tiers":['))).matchAll(/"price":\{"amount":([\d.]+),"currencyCode":"USD"\}/g)].map(x => +x[1]))].map(price => ({ price }));
       const cd = txt.match(/Ends in (\d+)d\s*:\s*(\d+)h\s*:\s*(\d+)m\s*:\s*(\d+)s/i);
-      if (cd) { b.endAt = new Date(Date.now() + (((+cd[1] * 24 + +cd[2]) * 60 + +cd[3]) * 60 + +cd[4]) * 1000).toISOString(); b.end = b.endAt.slice(0, 10); }
+      if (cd && !ed) { b.endAt = new Date(Date.now() + (((+cd[1] * 24 + +cd[2]) * 60 + +cd[3]) * 60 + +cd[4]) * 1000).toISOString(); b.end = b.endAt.slice(0, 10); }
       b.games = [...games.values()].slice(0, 60);
       if (tl.length) { tl.sort((x, y) => x.price - y.price); b.price = tl[tl.length - 1].price; b.min = tl[0].price; b.tiers = tl; }
-      if (!globalThis.dbgHb2 && !tl.length) {
-        globalThis.dbgHb2 = 1;
-        const flat = [...page.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)].map(x => { try { return JSON.parse('"' + x[1] + '"'); } catch { return ''; } }).join('');
-        for (const k of ['bundlePage', 'bundleItems', '"currency"', '"amount"', 'endDate', 'end_date', 'timeRemaining', '"price"']) { const i = flat.indexOf(k); console.log('humble flat', k, i, JSON.stringify(i < 0 ? '' : flat.slice(Math.max(0, i - 100), i + 500))); }
-      }
-      if (!globalThis.dbgHb) { globalThis.dbgHb = 1; console.log('humble nuevo', b.name, 'juegos', games.size, 'tiers', JSON.stringify(tl), 'fin', b.endAt, 'texto', txt.match(/Offer[^$]{0,60}/)?.[0]); }
+      if (!globalThis.dbgHb) { globalThis.dbgHb = 1; console.log('humble nuevo', b.name, 'juegos', games.size, 'tiers', JSON.stringify(tl), 'fin', b.endAt); }
       await sleep(300);
       continue;
     }
