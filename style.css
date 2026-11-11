@@ -52,6 +52,8 @@ main { padding-top: 12px; padding-bottom: 120px; }
 .view { display: none; }
 .view.on { display: block; }
 .row-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 40px 0 16px; }
+.row-head.first { margin-top: 16px; }
+.game-hero + .rail { margin-top: 16px; }
 .tools { display: flex; gap: 8px; align-items: center; }
 .link { background: none; border: 0; padding: 0; color: var(--mut); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line); }
 .link:hover { color: var(--tx); }
@@ -83,6 +85,7 @@ main { padding-top: 12px; padding-bottom: 120px; }
 .code b { flex: 1; min-width: 0; font: 600 15px ui-monospace, "SF Mono", Menlo, monospace; word-break: break-all; }
 .code .new { width: 7px; height: 7px; border-radius: 50%; background: var(--ac); flex: none; }
 .code .btn { padding: 8px 12px; }
+.code .btn.ghost:hover { background: var(--ac); color: var(--ac-tx); }
 .done-box { margin-top: 32px; }
 .done-box summary { cursor: pointer; color: var(--mut); list-style: none; display: inline-flex; gap: 6px; margin-bottom: 12px; }
 .done-box summary::-webkit-details-marker { display: none; }
@@ -172,7 +175,7 @@ s { opacity: .7; }
   .game .body { padding: 10px; gap: 8px; }
   .prices { flex-direction: column; align-items: flex-start; }
   .alt { align-items: flex-start; text-align: left; }
-  .go { gap: 10px; }
+  .go { gap: 0; justify-content: space-between; font-size: 11px; }
   .row-head { margin-top: 32px; }
   .tools { width: 100%; }
   .tools .search { flex: 1; }

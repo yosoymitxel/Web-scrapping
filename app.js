@@ -60,7 +60,7 @@ addEventListener('hashchange', route);
 const used = new Set(store.get('used'));
 const seen = new Set(store.get('seen'));
 const isNew = c => seen.size && !seen.has(c.code);
-const redeemBtn = (code, cls = '') => `<button class="btn ${cls}" data-c="${esc(code)}">${icon('copy')}Canjear</button>`;
+const redeemBtn = (code, cls = '') => `<button class="btn ${cls}" data-c="${esc(code)}" aria-label="Canjear ${esc(code)}">${icon('copy')}<span>Canjear</span></button>`;
 const drawCodes = () => {
   const list = as.codes || [];
   const todo = list.filter(c => !used.has(c.code)).sort((a, b) => isNew(b) - isNew(a));
@@ -71,7 +71,7 @@ const drawCodes = () => {
        <div class="big">${esc(next.code)}</div>${next.reward ? `<p class="reward">${esc(next.reward)}</p>` : ''}
        <div class="act">${redeemBtn(next.code)}</div>`
     : `<div class="big">Al día</div><p class="reward">${list.length ? 'Todos canjeados. Los nuevos aparecen acá solos.' : 'Sin datos todavía.'}</p>`;
-  $('codes').innerHTML = rest.map(c => `<li class="code">${isNew(c) ? '<span class="new" title="Nuevo"></span>' : ''}<b>${esc(c.code)}</b>${redeemBtn(c.code, 'sm')}</li>`).join('');
+  $('codes').innerHTML = rest.map(c => `<li class="code">${isNew(c) ? '<span class="new" title="Nuevo"></span>' : ''}<b>${esc(c.code)}</b>${redeemBtn(c.code, 'sm ghost')}</li>`).join('');
   $('codes').previousElementSibling.hidden = !rest.length;
   $('done').innerHTML = done.map(c => `<li class="code"><b>${esc(c.code)}</b><button class="btn sm ghost" data-undo="${esc(c.code)}">Deshacer</button></li>`).join('');
   $('doneBox').hidden = !done.length;
@@ -109,7 +109,7 @@ const tile = (url, img, title, pill, sub) => `<a class="tile" href="${esc(url)}"
   <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>`;
 const drawFree = () => {
   $('frChips').innerHTML = groups.length > 2 ? groups.map(s => `<button class="chip" data-s="${esc(s)}" aria-pressed="${s === frStore}">${esc(s)}<i>${s === 'Todos' ? free.length : free.filter(g => g.store === s).length}</i></button>`).join('') : '';
-  const list = free.filter(g => frStore === 'Todos' || g.store === frStore);
+  const list = free.filter(g => (frStore === 'Todos' ? g !== top : g.store === frStore));
   $('free').innerHTML = list.map(g => tile(g.url, g.img, g.title, g.store, [g.worth && `<s>${esc(g.worth)}</s>`, g.end && `hasta ${day(g.end)}`].filter(Boolean).join(' · '))).join('')
     || empty(free.length ? 'Nada en esta tienda.' : 'Sin datos todavía.');
 };
