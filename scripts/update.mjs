@@ -95,12 +95,22 @@ await step('wishlist', async () => {
   }
   // Precio más bajo fuera de Steam (Humble, GOG, Fanatical, GMG…)
   const stores = Object.fromEntries((await get('https://www.cheapshark.com/api/1.0/stores').catch(() => [])).map(s => [s.storeID, s.storeName]));
+  const csId = {};
   for (const g of games) {
-    const deals = await get(`https://www.cheapshark.com/api/1.0/deals?steamAppID=${g.id}`).catch(() => []);
-    const best = deals.filter(d => d.storeID !== '1').sort((a, b) => a.salePrice - b.salePrice)[0];
-    if (best) g.best = { usd: +best.salePrice, store: stores[best.storeID] || 'Otra', url: `https://www.cheapshark.com/redirect?dealID=${best.dealID}` };
-    await sleep(350);
+    const hit = await get(`https://www.cheapshark.com/api/1.0/games?steamAppID=${g.id}`).catch(e => (console.error(e.message), []));
+    if (hit[0]) csId[hit[0].gameID] = g;
+    await sleep(300);
   }
+  const csIds = Object.keys(csId);
+  for (let i = 0; i < csIds.length; i += 25) {
+    const info = await get(`https://www.cheapshark.com/api/1.0/games?ids=${csIds.slice(i, i + 25).join(',')}`).catch(e => (console.error(e.message), {}));
+    for (const [gid, { deals = [] }] of Object.entries(info)) {
+      const best = deals.filter(d => d.storeID !== '1').sort((a, b) => a.price - b.price)[0];
+      if (best) csId[gid].best = { usd: +best.price, store: stores[best.storeID] || 'Otra', url: `https://www.cheapshark.com/redirect?dealID=${best.dealID}` };
+    }
+    await sleep(300);
+  }
+  console.log('cheapshark', csIds.length, games.filter(g => g.best).length);
   if (!games.length) throw new Error('lista vacía o privada');
   return { games };
 });
