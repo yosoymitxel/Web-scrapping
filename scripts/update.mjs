@@ -50,39 +50,43 @@ await step('free', async () => {
 });
 
 await step('humble', async () => {
-  let m, html = '';
-  for (let i = 0; i < 3 && !m; i++) {
+  let html = '', out = new Map();
+  for (let i = 0; i < 3 && !out.size; i++) {
     if (i) await sleep(4000);
     html = await get('https://www.humblebundle.com/games', 'text').catch(e => (console.error('humble landing', e.message), ''));
-    // La etiqueta puede cambiar de id: vale cualquier script JSON que traiga product_url
-    m = html.match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/)
-      || [...html.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)].find(x => x[1].includes('product_url'));
+    const old = html.match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/);
+    if (old) (function walk(o) {
+      if (!o || typeof o !== 'object') return;
+      if (o.product_url?.startsWith('/games/') && (o.tile_short_name || o.tile_name)) {
+        out.set(o.product_url, { name: o.tile_short_name || o.tile_name, url: 'https://www.humblebundle.com' + o.product_url, img: o.tile_image || o.high_res_tile_image || '', end: (o['end_date|datetime'] || o.end_date || '').slice(0, 10), endAt: o['end_date|datetime'] || o.end_date || '' });
+      }
+      Object.values(o).forEach(walk);
+    })(JSON.parse(old[1]));
+    // Página nueva (Next.js): los bundles son enlaces /games/<slug>; el resto sale de cada página
+    else for (const m of html.matchAll(/href="(\/games\/[a-z0-9][a-z0-9-]+)"/g)) out.set(m[1], { name: m[1].slice(7).replace(/-/g, ' '), url: 'https://www.humblebundle.com' + m[1], img: '', end: '', endAt: '' });
   }
-  if (!m) {
-    console.error('humble sin JSON: largo', html.length, 'scripts', [...html.matchAll(/<script([^>]*)>/g)].map(x => x[1].trim().slice(0, 60)).slice(0, 12).join(' | '), 'inicio', clean(html).slice(0, 200));
-    throw new Error('sin JSON en la página');
+  if (!out.size) {
+    console.error('humble sin bundles: largo', html.length, 'inicio', clean(html).slice(0, 200));
+    throw new Error('sin bundles en la página');
   }
-  const out = new Map();
-  (function walk(o) {
-    if (!o || typeof o !== 'object') return;
-    if (o.product_url?.startsWith('/games/') && (o.tile_short_name || o.tile_name)) {
-      out.set(o.product_url, {
-        name: o.tile_short_name || o.tile_name,
-        url: 'https://www.humblebundle.com' + o.product_url,
-        img: o.tile_image || o.high_res_tile_image || '',
-        end: (o['end_date|datetime'] || o.end_date || '').slice(0, 10),
-        endAt: o['end_date|datetime'] || o.end_date || '',
-      });
-    }
-    Object.values(o).forEach(walk);
-  })(JSON.parse(m[1]));
-  if (!out.size) throw new Error('JSON sin bundles');
   // Juegos de cada bundle, para cruzarlos con la lista de deseados
   for (const b of out.values()) {
     console.log('humble bundle', b.name);
     const page = await get(b.url, 'text').catch(() => '');
     const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
-    if (!j) continue;
+    const meta = k => (page.match(new RegExp(`<meta[^>]*(?:property|name)="${k}"[^>]*content="([^"]*)"`, 'i')) || page.match(new RegExp(`<meta[^>]*content="([^"]*)"[^>]*(?:property|name)="${k}"`, 'i')))?.[1];
+    if (!b.img && meta('og:image')) b.img = clean(meta('og:image'));
+    if (meta('og:title') && b.name.toLowerCase() === b.url.split('/').pop().replace(/-/g, ' ')) b.name = clean(meta('og:title')).replace(/\s*\(.*$/, '');
+    if (!j) {
+      if (!globalThis.dbgHb) {
+        globalThis.dbgHb = 1;
+        const flat = [...page.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)].map(x => { try { return JSON.parse('"' + x[1] + '"'); } catch { return ''; } }).join('');
+        const at = k => { const i = flat.indexOf(k); return i < 0 ? 'NO' : flat.slice(Math.max(0, i - 150), i + 450); };
+        console.log('humble página', b.url, 'largo', page.length, 'flat', flat.length, 'scripts', [...page.matchAll(/<script([^>]*)>/g)].map(x => x[1].replace(/src="[^"]*"/, '').trim()).filter(Boolean).slice(0, 10).join('|'));
+        for (const k of ['tier_pricing_data', 'human_name', 'end_date', 'price|money', 'resolved_paths', 'steam_app_id']) console.log('humble clave', k, JSON.stringify(at(k)));
+      }
+      continue;
+    }
     const items = new Map(); const tiers = new Set(); let tierData = null, sample = null;
     const isImg = v => typeof v === 'string' && /^https?:\/\/\S+\.(jpe?g|png|webp)(\?|$)/i.test(v);
     // Primera imagen del juego; prefiere campos de portada
