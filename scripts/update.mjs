@@ -1,5 +1,5 @@
 // Corre en GitHub Actions (Node 20, sin dependencias). Escribe data/*.json.
-import { writeFile } from 'node:fs/promises';
+import { writeFile, readFile } from 'node:fs/promises';
 
 const UA = { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'accept-language': 'es,en;q=0.8' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -92,8 +92,14 @@ await step('humble', async () => {
   const all = new Map();
   for (const b of out.values()) for (const g of b.games || []) all.set(norm(g.n), g);
   console.log('humble imágenes', [...all.values()].filter(g => g.img).length, '/', all.size, [...all.values()].find(g => g.img)?.img);
+  // Reusar precios de la corrida anterior (< 24 h): solo se consultan juegos nuevos
+  const prev = await readFile('data/humble.json', 'utf8').then(JSON.parse).catch(() => ({}));
+  const known = Date.now() - new Date(prev.at || 0) < 864e5
+    ? new Map((prev.items || []).flatMap(b => b.games || []).filter(g => g.usd != null).map(g => [norm(g.n), g])) : new Map();
   const byId = {}; let n = 0;
   for (const [k, g] of all) {
+    const old = known.get(k);
+    if (old) { Object.assign(g, { usd: old.usd, low: old.low, steam: old.steam }); continue; }
     if (!(all.size % 1) && ++n % 20 === 0) console.log('cheapshark', n, '/', all.size);
     const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(g.n)}&limit=10`).catch(() => []);
     const m = hit.find(h => norm(h.external) === k);
