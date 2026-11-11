@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-process.env.ONLY = process.env.STEPS || 'cines,watch';
+process.env.ONLY = process.env.STEPS || 'humble';
 await import('./update.mjs');
 const j = async n => JSON.parse(await readFile(`data/${n}.json`, 'utf8'));
 const c = await j('cines');

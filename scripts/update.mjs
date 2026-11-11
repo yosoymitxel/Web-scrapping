@@ -69,6 +69,7 @@ await step('humble', async () => {
   if (!out.size) throw new Error('JSON sin bundles');
   // Juegos de cada bundle, para cruzarlos con la lista de deseados
   for (const b of out.values()) {
+    console.log('humble bundle', b.name);
     const page = await get(b.url, 'text').catch(() => '');
     const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
     if (!j) continue;
@@ -90,8 +91,9 @@ await step('humble', async () => {
   const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
   const all = new Map();
   for (const b of out.values()) for (const g of b.games || []) all.set(norm(g.n), g);
-  const byId = {};
+  const byId = {}; let n = 0;
   for (const [k, g] of all) {
+    if (!(all.size % 1) && ++n % 20 === 0) console.log('cheapshark', n, '/', all.size);
     const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(g.n)}&limit=10`).catch(() => []);
     const m = hit.find(h => norm(h.external) === k);
     if (m) { g.usd = +m.cheapest; g.steam = +m.steamAppID || undefined; byId[m.gameID] = g; }
