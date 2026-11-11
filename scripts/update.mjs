@@ -59,6 +59,14 @@ await step('wishlist', async () => {
   const names = await get(`https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=${encodeURIComponent(JSON.stringify({ ids: ids.map(appid => ({ appid })), context: { language: 'spanish', country_code: 'US' } }))}`).catch(() => null);
   const byId = Object.fromEntries((names?.response?.store_items || []).map(s => [s.appid, s.name]));
   games.forEach(g => (g.name = byId[g.id] || `App ${g.id}`));
+  // Mejor precio fuera de Steam (Humble, GOG, Fanatical, GMG…) vía CheapShark
+  const stores = Object.fromEntries((await get('https://www.cheapshark.com/api/1.0/stores').catch(() => [])).map(s => [s.storeID, s.storeName]));
+  for (const g of games) {
+    const deals = await get(`https://www.cheapshark.com/api/1.0/deals?steamAppID=${g.id}`).catch(() => []);
+    const best = deals.filter(d => d.storeID !== '1').sort((a, b) => a.salePrice - b.salePrice)[0];
+    if (best) g.best = { usd: +best.salePrice, store: stores[best.storeID] || '?', url: `https://www.cheapshark.com/redirect?dealID=${best.dealID}` };
+    await new Promise(r => setTimeout(r, 300));
+  }
   games.sort((a, b) => b.off - a.off);
   return { steamid, games };
 });

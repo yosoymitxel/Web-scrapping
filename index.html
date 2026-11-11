@@ -31,6 +31,8 @@ button:hover{background:#333846}
 .off{color:var(--ok);font-weight:600}
 .links{display:flex;gap:8px;font-size:12px;margin-top:auto}
 .row{display:flex;gap:8px}
+.list{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.pr{color:var(--tx);font-size:13px;padding:6px 8px;background:var(--bg);border-radius:8px}
 </style>
 </head>
 <body>
@@ -47,7 +49,8 @@ button:hover{background:#333846}
  <section>
   <h2>Descuentos</h2>
   <form class="row" id="tq"><input name="q" placeholder="Comercio" autocomplete="off"><button>Buscar</button></form>
-  <p class="mut"><a href="https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/" target="_blank" rel="noopener">PromoScraper</a></p>
+  <div id="promos" class="list"></div>
+  <p class="mut"><a id="tjt" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Tarjeteá</a> · <a href="https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/" target="_blank" rel="noopener">PromoScraper</a></p>
  </section>
  <section class="wide">
   <h2>Gratis <small id="frAt"></small></h2>
@@ -87,7 +90,18 @@ $('rate').textContent = R ? gs(R) : '—';
 $('usd').oninput = e => $('pyg').value = e.target.value ? Math.round(e.target.value * R) : '';
 $('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).toFixed(2) : '';
 
-$('tq').onsubmit = e => { e.preventDefault(); open('https://tarjetea.com.py/stores?q=' + encodeURIComponent(e.target.q.value)); };
+const PROMOS = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/promos.json';
+let promos;
+$('tq').onsubmit = async e => {
+  e.preventDefault();
+  const q = e.target.q.value.trim().toLowerCase(); if (!q) return;
+  $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
+  promos ??= await fetch(PROMOS).then(r => r.json()).catch(() => []);
+  const hit = promos.filter(p => (p.title + ' ' + p.desc).toLowerCase().includes(q))
+    .sort((a, b) => (b.discount_percent || 0) - (a.discount_percent || 0)).slice(0, 12);
+  $('promos').innerHTML = hit.map(p => `<a class="pr" href="${esc(p.href)}" target="_blank" rel="noopener"><b>${esc(p.bankShort)}</b> ${esc(p.title)} <span class="off">${p.discount_percent ? p.discount_percent + '%' : ''}</span> <span class="mut">${esc((p.days || []).join(' '))}</span></a>`).join('')
+    || '<p class="mut">Sin promos en PromoScraper; probá en Tarjeteá</p>';
+};
 
 $('frAt').textContent = ago(fr.at);
 $('free').innerHTML = (fr.items || []).map(g => `<a class="g" href="${esc(g.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(g.img)}" alt=""><div><span class="tag ${esc(g.store)}">${esc(g.store)}</span>${esc(g.title)}${g.end && g.end !== 'N/A' ? `<span class="mut">${esc(g.end.slice(0, 10))}</span>` : ''}</div></a>`).join('');
@@ -98,6 +112,7 @@ const card = g => {
   return `<div class="g"><a href="https://store.steampowered.com/app/${g.id}" target="_blank" rel="noopener"><img loading="lazy" src="https://cdn.cloudflare.steamstatic.com/steam/apps/${g.id}/header.jpg" alt=""></a><div>
   <span>${esc(g.name)}</span>
   <span>${g.off ? `<span class="off">-${g.off}%</span> ` : ''}${g.usd != null ? `$${g.usd}${R ? ` <span class="mut">${gs(g.usd * R)}</span>` : ''}` : '<span class="mut">—</span>'}</span>
+  ${g.best ? `<a href="${esc(g.best.url)}" target="_blank" rel="noopener">${esc(g.best.store)} $${g.best.usd}${R ? ` <span class="mut">${gs(g.best.usd * R)}</span>` : ''}</a>` : ''}
   <span class="links"><a href="https://steamdb.info/app/${g.id}/" target="_blank" rel="noopener">SteamDB</a><a href="https://www.eneba.com/latam/store/all?text=${q}" target="_blank" rel="noopener">Eneba</a><a href="https://www.humblebundle.com/store/search?search=${q}" target="_blank" rel="noopener">Humble</a></span>
   </div></div>`;
 };
