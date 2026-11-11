@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1794371302">
+<link rel="stylesheet" href="style.css?v=1794372048">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -124,24 +124,25 @@
 <dialog id="prof" class="sheet" aria-labelledby="profT">
  <div class="sheet-in">
   <div class="row-head first"><h2 id="profT">Perfil</h2><button class="link" id="profClose">Cerrar</button></div>
-  <form id="login" class="stack">
+  <form id="login" class="stack"><h3 class="sec">Cuenta</h3>
    <p class="mut" id="loginMsg">Entrá o creá una cuenta para guardar todo en la nube. Sin cuenta, queda en este navegador.</p>
    <label class="field"><span>Correo</span><input name="email" type="email" autocomplete="email" required></label>
    <label class="field"><span>Contraseña</span><input name="pass" type="password" autocomplete="current-password" minlength="6"></label>
    <div class="tools wrap"><button class="btn sm" value="in">Entrar</button><button class="btn sm ghost" value="up" formnovalidate>Crear cuenta</button><button class="link" type="button" id="forgot">Olvidé mi contraseña</button></div>
   </form>
-  <div id="me" class="stack" hidden><p class="mut">Sesión: <b id="meMail"></b></p>
+  <div id="me" class="stack" hidden><h3 class="sec">Cuenta</h3><p class="mut">Sesión: <b id="meMail"></b></p>
    <label class="field"><span>Nueva contraseña</span><input id="newPass" type="password" minlength="6" autocomplete="new-password"></label><div><button class="btn sm ghost" id="setPass" type="button">Cambiar contraseña</button></div></div>
   <div class="stack">
+   <h3 class="sec">Preferencias</h3>
    <label class="field"><span>Usuario de Steam (nombre de perfil o SteamID64)</span><input id="steamUser" placeholder="ej: yosoymitxel" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
    <label class="field"><span>Moneda de conversión</span><select id="curSel"></select></label>
    <div><span class="lbl">Mis bancos y tarjetas</span><div class="chips" id="profBanks"></div></div>
   </div>
-  <div class="tools wrap"><button class="btn sm" id="profSave">Guardar</button><button class="btn sm ghost" id="logout" hidden>Salir</button></div>
+  <div class="tools wrap"><button class="btn sm" id="profSave">Guardar</button><button class="btn sm ghost" id="profHid" type="button">Ocultos</button><button class="btn sm ghost" id="logout" hidden>Salir</button></div>
  </div>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1794371302"></script>
+<script type="module" src="app.js?v=1794372048"></script>
 </body>
 </html>

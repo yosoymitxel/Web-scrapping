@@ -138,6 +138,10 @@ const [SYM, DEC] = CURS[cur];
 const R = cur === 'USD' ? 1 : fx[cur] || 0;
 const fmt = n => SYM + ' ' + n.toLocaleString('es-PY', { minimumFractionDigits: DEC, maximumFractionDigits: DEC });
 const gs = usd => R ? fmt(usd * R) : '';
+const usdS = n => 'US$ ' + n.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = usd => usd == null ? '' : R ? gs(usd) : usdS(usd);
+const worth = w => { const n = num(w); return n == null ? w : money(n); };
+const small = usd => usd == null || !R || cur === 'USD' ? '' : usdS(usd);
 if (R && motion && !still) motion.animate(0, R, { duration: 1, ease: [.22, 1, .36, 1], onUpdate: v => $('rate').textContent = fmt(v) });
 else $('rate').textContent = R ? fmt(R) : 'Sin cotización';
 $('fxBtn').title = since(fx.at);
@@ -156,6 +160,7 @@ $('curSel').innerHTML = Object.entries(CURS).map(([k, [s]]) => `<option value="$
 const openProf = () => { $('steamUser').value = profile.steam || ''; drawBanks(); getPromos().then(drawBanks); $('prof').showModal(); };
 $('acctBtn').onclick = openProf;
 document.addEventListener('click', e => { if (e.target.closest('[data-prof]')) openProf(); });
+$('profHid').onclick = () => { $('prof').close(); $('hidBox').open = true; location.hash === '#asphalt' ? route() : location.hash = 'asphalt'; setTimeout(() => $('hidBox').scrollIntoView({ block: 'center' }), 50); };
 $('profClose').onclick = () => $('prof').close();
 $('prof').addEventListener('click', e => { if (e.target === $('prof')) $('prof').close(); });
 $('profSave').onclick = async () => {
@@ -212,7 +217,7 @@ profile.hnames ||= {};
 const redrawAll = [];
 const drawHidden = () => {
   const keys = [...hidden];
-  $('hidBox').hidden = !keys.length; $('nHid').textContent = keys.length || '';
+  $('profHid').hidden = !keys.length; $('hidBox').hidden = !keys.length; $('nHid').textContent = keys.length || '';
   $('hidList').innerHTML = keys.map(k => `<li><span>${esc(profile.hnames[k] || k.slice(1).replace(/^https?:\/\/(www\.)?/, ''))}</span><button class="link" data-show="${esc(k)}" aria-label="Mostrar ${esc(profile.hnames[k] || '')}">Mostrar</button></li>`).join('');
 };
 const unhide = ks => { ks.forEach(k => { hidden.delete(k); delete profile.hnames[k]; }); profile.hidden = [...hidden]; saveProfile(); drawHidden(); redrawAll.forEach(f => f()); };
@@ -222,7 +227,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-hide]'); if (!b) return;
   e.preventDefault(); const k = b.dataset.hide;
   hidden.add(k); profile.hidden = [...hidden]; profile.hnames[k] = b.dataset.name || ''; saveProfile();
-  b.closest('article')?.remove(); drawHidden(); toast('Oculto · se recupera en Más');
+  b.closest('article')?.remove(); drawHidden(); toast('Oculto · vuelve desde Más');
 });
 const hideBtn = (k, n = '') => `<button class="hide" data-hide="${esc(k)}" data-name="${esc(n)}" aria-label="Ocultar ${esc(n)}">${icon('x')}</button>`;
 drawHidden();
@@ -237,7 +242,6 @@ if (top) {
 } else $('frHero').hidden = true;
 const groups = ['Todos', ...new Set(free.map(g => g.store))];
 let frStore = 'Todos';
-const worth = w => { const n = num(w); return n == null ? w : money(n); };
 const tile = (url, img, title, pill, sub, key) => `<article class="tile"><a href="${esc(url)}" target="_blank" rel="noopener">
   <div class="art">${img ? `<img loading="lazy" src="${esc(img)}" alt="" width="300" height="169">` : ''}${pill ? `<span class="pill">${esc(pill)}</span>` : ''}</div>
   <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>${key ? hideBtn(key, title) : ''}</article>`;
@@ -249,6 +253,7 @@ const drawFree = () => {
 };
 $('frChips').onclick = e => { const s = e.target.closest('[data-s]')?.dataset.s; if (s) { frStore = s; drawFree(); reveal('#free .tile'); } };
 redrawAll.push(() => drawFree());
+drawFree();
 
 // Deseados: precio Steam (región PY) y la tienda más barata, en ₲
 let games = [], wished = new Map(), wishedId = new Set(), wlAt = '', wlMsg = 'Poné tu usuario de Steam en <button class="link" data-prof>Perfil</button> para ver tus deseados.';
@@ -264,39 +269,40 @@ const card = g => {
   const alt = g.best && g.usd != null && g.best.usd < g.usd;
   const usd = alt ? g.best.usd : g.usd;
   const where = alt ? g.best.store : 'Steam';
+  const lowTxt = !g.free && g.low && g.low.usd != null && (usd == null || g.low.usd < usd) ? `mín ${money(g.low.usd)}` : '';
+  const now = g.free ? 'Gratis' : usd == null ? '<span class="nop">Sin precio</span>' : money(usd);
   return `<article class="game">
-    <a class="art" href="${alt ? esc(g.best.url) : `https://store.steampowered.com/app/${g.id}`}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`)}" alt="" width="460" height="215">${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}</a>
-    ${hideBtn('g' + g.id)}
+    <a class="art" href="${alt ? esc(g.best.url) : `https://store.steampowered.com/app/${g.id}`}" target="_blank" rel="noopener" aria-label="${esc(g.name)} en ${esc(where)}"><img loading="lazy" src="${esc(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`)}" alt="" width="460" height="215">${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}</a>
+    ${hideBtn('g' + g.id, g.name)}
     <div class="body">
       <span class="name">${esc(g.name)}</span>
-      <div class="now">${g.free ? 'Gratis' : usd == null ? '—' : R ? gs(usd) : '$' + usd.toFixed(2)}</div>
-      <small class="low">${esc(where)}${usd != null && R ? ` · $${usd.toFixed(2)}` : ''}${g.low ? ` · mín ${R ? gs(g.low.usd) : '$' + g.low.usd}` : ''}</small>
+      <div class="now">${now}</div>
+      <small class="low">${esc([where, !g.free && small(usd), lowTxt].filter(Boolean).join(' · '))}</small>
       <div class="go"><a href="https://steamdb.info/app/${g.id}/" target="_blank" rel="noopener">SteamDB</a><a href="https://www.eneba.com/latam/store/all?text=${q}" target="_blank" rel="noopener">Eneba</a><a href="https://www.humblebundle.com/store/search?search=${q}" target="_blank" rel="noopener">Humble</a></div>
     </div></article>`;
 };
 const drawWl = () => {
   const q = $('wlq').value.trim().toLowerCase(), sale = $('wlSale').getAttribute('aria-pressed') === 'true';
   const list = games.filter(g => !hidden.has('g' + g.id) && g.name.toLowerCase().includes(q) && (!sale || g.off || (g.best && g.best.usd < g.usd)));
-  $('wl').innerHTML = list.map(card).join('')
-    || empty(games.length ? 'Ninguno coincide.' : wlMsg);
+  paged($('wl'), list, card, empty(games.length ? 'Ninguno coincide.' : wlMsg));
 };
 $('wlq').oninput = drawWl;
 $('wlSale').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); drawWl(); reveal('#wl .game'); };
+redrawAll.push(() => drawWl());
 drawWl();
 
 // Bundles de Humble: juegos de portada en carrusel, deseados primero, precio y mínimo por juego
 const isWished = x => wishedId.has(x.steam) || wished.has(norm(x.n));
-const money = usd => usd == null ? '' : R ? gs(usd) : '$' + usd.toFixed(2);
 const drawRails = () => {
 const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
   .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: g } : g); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
   .sort((a, b) => b.hits - a.hits);
 $('hb').innerHTML = bundles.map(b => `<article class="tile bundle">
   <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener">${b.img ? `<img loading="lazy" src="${esc(b.img)}" alt="">` : ''}${b.hits ? `<span class="pill ac">${b.hits} deseado${b.hits > 1 ? 's' : ''}</span>` : ''}</a>
-  ${hideBtn('b' + b.url)}
+  ${hideBtn('b' + b.url, b.name)}
   ${b.gs.some(g => g.img) ? `<div class="mini">${b.gs.filter(g => g.img).slice(0, 12).map(g => `<img loading="lazy" src="${esc(g.img)}" alt="${esc(g.n)}" title="${esc(g.n)}"${isWished(g) ? ' class="hit"' : ''}>`).join('')}</div>` : ''}
-  <strong>${esc(b.name)}</strong><span class="sub">${[b.price && money(b.price), b.end && 'hasta ' + day(b.end)].filter(Boolean).join(' · ')}</span>
-  ${b.gs.length ? `<details class="inc"><summary>${b.gs.length} juegos${b.gs.some(g => g.usd) ? ' · valen ' + money(b.gs.reduce((t, g) => t + (g.usd || 0), 0)) : ''}</summary><ul>${b.gs.map(g => `<li${isWished(g) ? ' class="hit"' : ''}><span>${esc(g.n)}</span><small>${[money(g.usd), g.low != null && 'mín ' + money(g.low)].filter(Boolean).join(' · ')}</small></li>`).join('')}</ul></details>` : ''}
+  <strong>${esc(b.name)}</strong><span class="sub">${[num(b.price) && money(num(b.price)), b.end && 'hasta ' + day(b.end)].filter(Boolean).join(' · ')}</span>
+  ${b.gs.length ? `<details class="inc"><summary>${b.gs.length} juegos${b.gs.filter(g => g.usd).length * 2 >= b.gs.length ? ' · valen ' + money(b.gs.reduce((t, g) => t + (g.usd || 0), 0)) : ''}</summary><ul>${b.gs.map(g => `<li${isWished(g) ? ' class="hit"' : ''}><span>${esc(g.n)}</span><small>${[money(g.usd), g.low != null && 'mín ' + money(g.low)].filter(Boolean).join(' · ')}</small></li>`).join('')}</ul></details>` : ''}
 </article>`).join('') || empty('Sin datos todavía.');
 
 // Playtests abiertos; demos solo si el juego está en deseados (deseados primero)
@@ -306,6 +312,7 @@ $('pt').innerHTML = pts.map(x => tile(`https://store.steampowered.com/app/${x.id
   || empty('Sin playtests ahora.');
 $('gmAt').textContent = since(wlAt || fr.at);
 };
+redrawAll.push(() => drawRails());
 drawRails();
 
 // Deseados desde la función de Supabase (cachea 6 h en el servidor y acá)
@@ -328,14 +335,31 @@ loadWl();
 
 // Tarjetas: busca en PromoScraper (se actualiza a diario)
 let promos;
-const getPromos = async () => promos ??= await fetch(PROMOS).then(r => r.json()).catch(() => undefined);
+const getPromos = async () => {
+  if (promos) return promos;
+  const hit = store_ttl('panel.promos', 12 * 36e5);
+  if (hit) return promos = hit;
+  const d = await fetch(PROMOS).then(r => r.json()).catch(() => undefined);
+  if (d?.length) store.set('panel.promos', { t: Date.now(), data: d });
+  else promos = store.get('panel.promos', null)?.data;
+  return promos ??= d;
+};
 // Shopping donde está el local (listas de locales de cada shopping)
 const malls = (sh.items || []).map(m => ({ name: m.name, set: new Set(m.stores.map(norm)) }));
 const mall = t => malls.filter(m => m.set.has(norm(t))).map(m => m.name).join(', ');
 const recent = store.get('recent');
+redrawAll.push(() => lastQ && search(lastQ));
 const drawRecent = () => $('recent').innerHTML = recent.map(r => `<button class="chip" data-q="${esc(r)}">${esc(r)}</button>`).join('');
+const promoCard = p => `<article class="promo">
+    ${p.img ? `<img class="pimg" loading="lazy" src="${esc(p.img)}" alt="">` : `<span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>`}
+    <div class="pbody"><strong>${esc(p.title)}</strong>${mall(p.title) ? `<small class="mall">${esc(mall(p.title))}</small>` : ''}
+      <small>${esc([p.img ? p.bankShort : '', p.when || (p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small>${p.cards ? `<small>${esc(p.cards.join(' · '))}</small>` : ''}
+</div>
+    <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id, p.title)}
+    <span class="src"><a href="${esc(p.href)}" target="_blank" rel="noopener">Bases ${esc(p.bankShort)}</a><a class="map" href="https://www.google.com/maps/search/${encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay'))}" target="_blank" rel="noopener">${icon('pin')}Mapa</a></span></article>`;
+let lastQ = '';
 const search = async q => {
-  q = q.trim(); if (!q) return;
+  q = q.trim(); if (!q) return; lastQ = q;
   const ql = q.toLowerCase();
   document.querySelector('#tq input').value = q;
   $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
@@ -348,13 +372,7 @@ const search = async q => {
   const hit = (byTitle.length ? byTitle : promos.filter(p => p.desc?.toLowerCase().includes(ql)))
     .sort((a, b) => mine.has(b.bankShort) - mine.has(a.bankShort) || (b.discount_percent || 0) - (a.discount_percent || 0));
   drawBanks();
-  $('promos').innerHTML = hit.filter(p => !hidden.has('p' + p.id)).slice(0, 40).map(p => `<article class="promo">
-    ${p.img ? `<img class="pimg" loading="lazy" src="${esc(p.img)}" alt="">` : `<span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>`}
-    <div style="min-width:0"><strong>${esc(p.title)}</strong>${mall(p.title) ? `<small class="mall">${esc(mall(p.title))}</small>` : ''}
-      <small>${esc([p.img ? p.bankShort : '', p.when || (p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small>${p.cards ? `<small>${esc(p.cards.join(' · '))}</small>` : ''}
-      <small class="src"><a href="${esc(p.href)}" target="_blank" rel="noopener">Bases · ${esc(p.bankShort)}</a> · <a class="map" href="https://www.google.com/maps/search/${encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay'))}" target="_blank" rel="noopener"><svg class="ic"><use href="#i-pin"/></svg>Mapa</a></small></div>
-    <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id)}</article>`).join('')
-    || empty(`Sin promos para «${esc(q)}».`);
+  paged($('promos'), hit.filter(p => !hidden.has('p' + p.id)), promoCard, empty(`Sin promos para «${esc(q)}».`));
   reveal('#promos .promo');
   recent.splice(0, recent.length, q, ...recent.filter(r => r.toLowerCase() !== ql).slice(0, 7));
   store.set('recent', recent); drawRecent();
@@ -381,15 +399,22 @@ route();
 // Productos: abre el buscador de cada tienda (sin scraping)
 const GENERAL = [['Rebuscate','https://rebuscate.com/?q=']];
 const SHOPS = [['Nissei','https://nissei.com/py/catalogsearch/result/?q='],['Tienda Naranja','https://tiendanaranja.com.py/catalogsearch/result/?q='],['Contimarket','https://www.contimarket.com/search?Box=False&q='],['Compulandia','https://www.compulandia.com.py/py/store?q='],['Visuar','https://visuar.com.py/searchiqit?s='],['Tecnoga','https://tecnoga.com.py/?post_type=product&s='],['Innovagame','https://www.innovagame.com.py/busqueda?controller=search&s='],['Compras Paraguai','https://www.comprasparaguai.com.br/busca/?q=']];
-const gsFmt = n => '₲ ' + Math.round(n).toLocaleString('es-PY');
-const prodCard = p => `<a class="pcard" href="${esc(p.url)}" target="_blank" rel="noopener"><span class="pph">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span><span class="pname">${esc(p.name)}</span><span class="pprice">${gsFmt(p.price)}</span>${p.old ? `<span class="pold"><s>${gsFmt(p.old)}</s> <b>-${p.off}%</b></span>` : ''}<span class="mut">${esc(p.shop)}</span></a>`;
+const pyg = n => fx.PYG ? n / fx.PYG : null;
+const prodMoney = n => cur === 'PYG' ? '₲ ' + Math.round(n).toLocaleString('es-PY') : pyg(n) != null ? money(pyg(n)) : '₲ ' + Math.round(n).toLocaleString('es-PY');
+const prodCard = p => {
+  const off = p.off || (p.old > p.price ? Math.round((1 - p.price / p.old) * 100) : 0);
+  const sm = cur === 'USD' ? '' : pyg(p.price) != null ? usdS(pyg(p.price)) : '';
+  return `<a class="pcard" href="${esc(p.url)}" target="_blank" rel="noopener"><span class="pph">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span><span class="pname">${esc(p.name)}</span><span class="pprice">${prodMoney(p.price)}</span><span class="pold">${sm}</span><span class="pold">${p.old > p.price ? `<s>${prodMoney(p.old)}</s>` : ''}${off ? ` <b>-${off}%</b>` : ''}</span><span class="mut pshop">${esc(p.shop)}</span></a>`;
+};
 async function searchProducts(q) {
-  const k = 'prod:' + q.toLowerCase();
-  try { const c = JSON.parse(sessionStorage.getItem(k)); if (c) return c; } catch {}
+  const k = q.toLowerCase(), all = store.get('panel.prod', {});
+  const c = all[k]; if (c && Date.now() - c.t < 6 * 36e5) return c.data;
   const r = await fetch(`https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=${encodeURIComponent(q)}`);
   if (!r.ok) throw new Error(r.status);
-  const d = await r.json();
-  try { sessionStorage.setItem(k, JSON.stringify(d)); } catch {}
+  const d = (await r.json()).filter(p => Number.isFinite(p.price) && p.price > 0);
+  all[k] = { t: Date.now(), data: d };
+  const keep = Object.entries(all).sort((x, y) => y[1].t - x[1].t).slice(0, 12);
+  store.set('panel.prod', Object.fromEntries(keep));
   return d;
 }
 $('pq').onsubmit = async e => { e.preventDefault(); const raw = e.target.q.value.trim(); if (!raw) return;
@@ -408,7 +433,9 @@ $('pq').onsubmit = async e => { e.preventDefault(); const raw = e.target.q.value
   more.onclick = draw; draw(); };
 
 const watch = await load('watch');
-$('watch').innerHTML = (watch.items || []).filter(w => w.off).map(w => `<a class="lk" href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.name)}<span class="pill ac">-${w.off}%</span></a>`).join('');
+const onSale = (watch.items || []).filter(w => w.off);
+$('watchHead').hidden = !onSale.length;
+$('watch').innerHTML = onSale.map(w => `<div class="lk"><a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.name)}</a><span class="pill ac">-${w.off}%</span></div>`).join('');
 
 // Cartelera: película primero; filtro por cine
 const movies = cn.movies || [];
@@ -417,11 +444,11 @@ let cine = store.get('cine', '');
 const drawCine = () => {
   $('cineChips').innerHTML = ['', ...cinesAll].map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cine}">${esc(c || 'Todos')}</button>`).join('');
   const list = movies.filter(m => !cine || m.at.some(a => a.cine === cine));
-  $('movies').innerHTML = list.map(m => `<article class="movie">
-    <a href="${esc(m.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(m.img)}" alt="" width="200" height="300"></a>
+  paged($('movies'), list, m => `<article class="movie">
+    <a href="${esc(m.url)}" target="_blank" rel="noopener" aria-label="${esc(m.title)}"><img loading="lazy" src="${esc(m.img)}" alt="" width="200" height="300"></a>
     <strong>${esc(m.title)}</strong>
     <details class="inc"><summary>${cine ? 'Horarios' : m.at.length + ' cine' + (m.at.length > 1 ? 's' : '')}</summary><ul>${m.at.filter(a => !cine || a.cine === cine).map(a => `<li><span>${esc(a.cine)}</span><small>${esc(a.times.join(' · '))}</small></li>`).join('')}</ul></details>
-  </article>`).join('') || empty('Sin cartelera todavía.');
+  </article>`, empty('Sin cartelera todavía.'));
 };
 $('cineChips').onclick = e => { const c = e.target.dataset.c; if (c == null) return; cine = c; store.set('cine', c); drawCine(); reveal('#movies .movie'); };
 drawCine();
