@@ -50,8 +50,11 @@ await step('free', async () => {
 });
 
 await step('humble', async () => {
-  const h = await get('https://www.humblebundle.com/games', 'text');
-  const m = h.match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/);
+  let m;
+  for (let i = 0; i < 3 && !m; i++) {
+    if (i) await sleep(4000);
+    m = (await get('https://www.humblebundle.com/games', 'text').catch(() => '')).match(/<script[^>]*id="landingPage-json-data"[^>]*>([\s\S]*?)<\/script>/);
+  }
   if (!m) throw new Error('sin JSON en la página');
   const out = new Map();
   (function walk(o) {
@@ -73,18 +76,27 @@ await step('humble', async () => {
     const page = await get(b.url, 'text').catch(() => '');
     const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
     if (!j) continue;
-    const items = new Map(); let price = 0;
+    const items = new Map(); const tiers = new Set(); let tierData = null, sample = null;
+    const isImg = v => typeof v === 'string' && /^https?:\/\/\S+\.(jpe?g|png|webp)(\?|$)/i.test(v);
+    // Primera imagen del juego; prefiere campos de portada
+    const imgOf = o => { let best = '', pri = 9; (function f(x, k) { if (!x || typeof x !== 'object') { if (isImg(x)) { const p = /featured|thumb|capsule|header|cover/i.test(k) ? 0 : /icon/i.test(k) ? 2 : 1; if (p < pri) { pri = p; best = x; } } return; } Object.entries(x).forEach(([kk, v]) => f(v, kk)); })(o, ''); return best; };
     (function walk(o) {
       if (!o || typeof o !== 'object') return;
+      if (o.tier_pricing_data && typeof o.tier_pricing_data === 'object' && !tierData) tierData = o.tier_pricing_data;
       if (o.human_name && o.machine_name && !o.tier_order && !items.has(o.human_name)) {
-        const img = o.resolved_paths?.featured_image || '';
-        items.set(o.human_name, { n: o.human_name, img });
+        sample ||= o;
+        items.set(o.human_name, { n: o.human_name, img: o.resolved_paths?.featured_image || imgOf(o), steam: +o.steam_app_id || undefined });
       }
-      if (o.price?.amount && o.price?.currency === 'USD') price = Math.max(price, +o.price.amount);
+      const pm = o['price|money'] || o.price;
+      if (pm?.amount != null && pm.currency === 'USD') tiers.add(+pm.amount);
       Object.values(o).forEach(walk);
     })(JSON.parse(j[1]));
+    if (tierData) { tiers.clear(); Object.values(tierData).forEach(t => { const pm = t?.['price|money'] || t?.price; if (pm?.amount != null) tiers.add(+pm.amount); }); }
+    if (!b.logged) { b.logged = 1; console.log('humble precios', b.name, [...tiers].join(','), 'muestra', JSON.stringify(sample).slice(0, 700)); }
     b.games = [...items.values()].filter(g => g.n !== b.name && !/charity|plan\b|subscription|donat/i.test(g.n)).slice(0, 60);
-    if (price) b.price = price;
+    delete b.logged;
+    const tl = [...tiers].filter(x => x > 0).sort((a, c) => a - c);
+    if (tl.length) { b.price = tl[tl.length - 1]; b.min = tl[0]; }
     await sleep(300);
   }
   // Precio actual más bajo y mínimo histórico de cada juego (CheapShark), como en deseados
