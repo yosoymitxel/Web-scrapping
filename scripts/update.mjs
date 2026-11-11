@@ -6,7 +6,8 @@ const STEAM_ID = '76561198865545057';
 const UA = { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'accept-language': 'es,en;q=0.8' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const get = async (url, as = 'json') => {
-  const r = await fetch(url, { headers: UA });
+  // CheapShark responde 400 a UAs de navegador desde servidores
+  const r = await fetch(url, { headers: url.includes('cheapshark') ? { 'user-agent': 'panel-precios/1.0' } : UA });
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return as === 'json' ? r.json() : r.text();
 };
