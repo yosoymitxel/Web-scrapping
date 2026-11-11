@@ -1,5 +1,5 @@
 // Buscador de productos: consulta varias tiendas en paralelo y cachea 6 h en public.products_cache.
-const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, OPTIONS', 'access-control-expose-headers': '*' };
 const BROWSER = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36';
 const TTL = 6 * 3600 * 1000;
 const SB = Deno.env.get('SUPABASE_URL')! + '/rest/v1/products_cache';
@@ -99,7 +99,7 @@ Deno.serve(async req => {
   all.sort((a, b) => a.price - b.price);
   const counts = Object.fromEntries(SHOPS.map(([n]) => [n, all.filter(p => p.shop === n).length]));
   if (all.length) {
-    fetch(SB, { method: 'POST', headers: { ...H, prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key, data: all, at: new Date().toISOString() }) }).catch(() => {});
+    await fetch(SB, { method: 'POST', headers: { ...H, prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key, data: all, at: new Date().toISOString() }) }).catch(() => {});
   }
   return json(all, { 'x-cache': 'miss', 'x-counts': JSON.stringify(counts), 'x-errors': errs.join(' | ').slice(0, 300) });
 });
