@@ -164,25 +164,32 @@ drawFree();
 
 // Deseados: precio Steam (región PY) y la tienda más barata, en ₲
 const games = (wl.games || []).slice().sort((a, b) => b.off - a.off || (a.usd ?? 1e9) - (b.usd ?? 1e9));
+// Oculto: lo ya visto, en todos los paneles (perfil)
+const hidden = new Set(profile.hidden || []);
+const hide = k => { hidden.add(k); profile.hidden = [...hidden]; saveProfile(); };
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-hide]'); if (!b) return;
+  e.preventDefault(); hide(b.dataset.hide); b.closest('article, .tile')?.remove(); toast('Oculto');
+});
+const hideBtn = k => `<button class="hide" data-hide="${esc(k)}" aria-label="Ocultar">×</button>`;
 const card = g => {
   const q = encodeURIComponent(g.name);
-  const cheaper = g.best && g.usd != null && g.best.usd < g.usd;
-  const price = g.free ? 'Gratis' : g.usd == null ? '—' : `$${g.usd.toFixed(2)}`;
+  const alt = g.best && g.usd != null && g.best.usd < g.usd;
+  const usd = alt ? g.best.usd : g.usd;
+  const where = alt ? g.best.store : 'Steam';
   return `<article class="game">
-    <a class="art" href="https://store.steampowered.com/app/${g.id}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`)}" alt="" width="460" height="215">${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}</a>
+    <a class="art" href="${alt ? esc(g.best.url) : `https://store.steampowered.com/app/${g.id}`}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`)}" alt="" width="460" height="215">${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}</a>
+    ${hideBtn('g' + g.id)}
     <div class="body">
-      <a class="name" href="https://store.steampowered.com/app/${g.id}" target="_blank" rel="noopener">${esc(g.name)}</a>
-      <div class="prices">
-        <div><span class="now">${price}</span>${g.usd ? `<small>${gs(g.usd)} · Steam</small>` : ''}</div>
-        ${cheaper ? `<a class="alt" href="${esc(g.best.url)}" target="_blank" rel="noopener">$${g.best.usd.toFixed(2)} en ${esc(g.best.store)}<span>${gs(g.best.usd)}</span></a>` : ''}
-      </div>
-      ${g.low ? `<small class="low">Mínimo histórico $${g.low.usd.toFixed(2)} · ${day(g.low.date)}</small>` : ''}
+      <span class="name">${esc(g.name)}</span>
+      <div class="now">${g.free ? 'Gratis' : usd == null ? '—' : R ? gs(usd) : '$' + usd.toFixed(2)}</div>
+      <small class="low">${esc(where)}${usd != null && R ? ` · $${usd.toFixed(2)}` : ''}${g.low ? ` · mín ${R ? gs(g.low.usd) : '$' + g.low.usd}` : ''}</small>
       <div class="go"><a href="https://steamdb.info/app/${g.id}/" target="_blank" rel="noopener">SteamDB</a><a href="https://www.eneba.com/latam/store/all?text=${q}" target="_blank" rel="noopener">Eneba</a><a href="https://www.humblebundle.com/store/search?search=${q}" target="_blank" rel="noopener">Humble</a></div>
     </div></article>`;
 };
 const drawWl = () => {
   const q = $('wlq').value.trim().toLowerCase(), sale = $('wlSale').getAttribute('aria-pressed') === 'true';
-  const list = games.filter(g => g.name.toLowerCase().includes(q) && (!sale || g.off || (g.best && g.best.usd < g.usd)));
+  const list = games.filter(g => !hidden.has('g' + g.id) && g.name.toLowerCase().includes(q) && (!sale || g.off || (g.best && g.best.usd < g.usd)));
   $('wl').innerHTML = list.map(card).join('')
     || empty(games.length ? 'Ninguno coincide.' : 'Sin datos todavía. La lista de deseados de Steam tiene que ser pública.');
 };
@@ -212,11 +219,12 @@ const search = async q => {
   const hit = (byTitle.length ? byTitle : promos.filter(p => p.desc?.toLowerCase().includes(ql)))
     .sort((a, b) => mine.has(b.bankShort) - mine.has(a.bankShort) || (b.discount_percent || 0) - (a.discount_percent || 0));
   drawBanks();
-  $('promos').innerHTML = hit.slice(0, 40).map(p => `<a class="promo" href="${esc(p.href)}" target="_blank" rel="noopener">
-    <span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>
+  $('promos').innerHTML = hit.filter(p => !hidden.has('p' + p.id)).slice(0, 40).map(p => `<article class="promo">
+    ${p.img ? `<img class="pimg" loading="lazy" src="${esc(p.img)}" alt="">` : `<span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>`}
     <div style="min-width:0"><strong>${esc(p.title)}</strong>
-      <small>${esc([(p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small></div>
-    <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span></a>`).join('')
+      <small>${esc([p.img ? p.bankShort : '', (p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small>
+      <small class="src"><a href="${esc(p.href)}" target="_blank" rel="noopener">Bases · ${esc(p.bankShort)}</a> · <a href="https://www.google.com/maps/search/${encodeURIComponent(p.title + ' Paraguay')}" target="_blank" rel="noopener">Mapa</a></small></div>
+    <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id)}</article>`).join('')
     || empty(`Sin promos para «${esc(q)}».`);
   reveal('#promos .promo');
   recent.splice(0, recent.length, q, ...recent.filter(r => r.toLowerCase() !== ql).slice(0, 7));
@@ -240,3 +248,8 @@ $('recent').onclick = e => e.target.dataset.q && search(e.target.dataset.q);
 drawRecent();
 
 route();
+
+// Productos: abre el buscador de cada tienda (sin scraping)
+const SHOPS = [['Rebuscate','https://rebuscate.com/?q='],['Nissei','https://nissei.com/py/catalogsearch/result/?q='],['Tienda Naranja','https://tiendanaranja.com.py/catalogsearch/result/?q='],['Contimarket','https://www.contimarket.com/search?Box=False&q='],['Compulandia','https://www.compulandia.com.py/py/store?q='],['Visuar','https://visuar.com.py/searchiqit?s='],['Tecnoga','https://tecnoga.com.py/?post_type=product&s='],['Innovagame','https://www.innovagame.com.py/busqueda?controller=search&s='],['Compras Paraguai','https://www.comprasparaguai.com.br/busca/?q=']];
+$('pq').onsubmit = e => { e.preventDefault(); const q = encodeURIComponent(e.target.q.value.trim()); if (!q) return;
+  $('shops').innerHTML = SHOPS.map(([n, u]) => `<a class="chip" href="${u}${q}" target="_blank" rel="noopener">${n}</a>`).join(''); };
