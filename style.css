@@ -386,3 +386,5 @@ a.chip { gap: 6px; }
 .sel select { min-height: 44px; border-radius: 999px; border: 1px solid var(--line); background: var(--s1); color: var(--tx); padding: 0 14px; font: inherit; }
 #pTools { margin-top: 8px; flex-wrap: wrap; }
 #pType, #pMall { margin-top: 4px; }
+.whit { display: flex; gap: 6px; align-items: flex-start; margin: 6px 0 0; color: var(--ac); font-weight: 600; font-size: 14px; }
+.whit .ic { width: 16px; height: 16px; flex: none; margin-top: 2px; }

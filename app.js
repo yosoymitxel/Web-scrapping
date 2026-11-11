@@ -339,7 +339,7 @@ const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
   .sort((a, b) => b.hits - a.hits);
 matchMsg('mHb', bundles.reduce((t, b) => t + b.hits, 0), 'en bundles');
 const gameLi = g => {
-  const q = encodeURIComponent(g.n), id = g.steam;
+  const q = encodeURIComponent(g.n), id = g.steam || wished.get(norm(g.n))?.id;
   return `<li${isWished(g) ? ' class="hit"' : ''}><span class="cv">${im(g.img || (id ? `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_231x87.jpg` : ''), g.n)}</span><span class="gn">${esc(g.n)}</span><span class="gl">${fav(id ? `https://store.steampowered.com/app/${id}` : `https://store.steampowered.com/search/?term=${q}`, 'store.steampowered.com', 'Steam')}${fav(id ? `https://steamdb.info/app/${id}/` : `https://steamdb.info/search/?a=app&q=${q}`, 'steamdb.info', 'SteamDB')}</span></li>`;
 };
 const over = b => { const t = endAt(b); return t && t < Date.now(); };
@@ -352,6 +352,7 @@ $('hb').innerHTML = bundles.map(b => {
   <div class="body"><strong>${esc(b.name)}</strong>
   ${p ? priceBox({ usd: p, extra: n ? `<small class="pg">≈ ${money(p / n)} por juego</small>` : '' }) : ''}
   ${endTag(b)}
+  ${b.hits ? `<p class="whit">${icon('check')}${b.gs.filter(isWished).map(g => esc(g.n)).join(' · ')}</p>` : ''}
   ${n ? `<details class="inc"><summary>${n} juegos</summary><ul class="glist">${b.gs.map(gameLi).join('')}</ul></details>` : ''}</div>
 </article>`; }).join('') || empty('Sin datos todavía.');
 
