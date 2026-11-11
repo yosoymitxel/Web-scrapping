@@ -379,3 +379,10 @@ a.chip { gap: 6px; }
 .fav, .glist .gl a.fav { display: inline-grid; place-items: center; padding: 0; gap: 0; }
 .fav img, .glist .gl a.fav img { width: 18px !important; height: 18px !important; margin: 0; }
 .bundle .glist { padding: 0 14px 0 14px !important; margin-inline: 0 !important; }
+.srcs { display: flex; gap: 16px; flex-wrap: wrap; }
+.match { margin: -6px 0 12px; color: var(--mut); font-size: 14px; }
+.match.on { color: var(--ac); }
+.sel { display: inline-flex; align-items: center; gap: 8px; color: var(--mut); font-size: 14px; }
+.sel select { min-height: 44px; border-radius: 999px; border: 1px solid var(--line); background: var(--s1); color: var(--tx); padding: 0 14px; font: inherit; }
+#pTools { margin-top: 8px; flex-wrap: wrap; }
+#pType, #pMall { margin-top: 4px; }

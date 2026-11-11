@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1794406050">
+<link rel="stylesheet" href="style.css?v=1794407055">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -102,9 +102,11 @@
   <p class="stamp s" id="atWl"></p>
 
   <div class="row-head"><h2>Bundles</h2><a class="link" href="https://www.humblebundle.com/games" target="_blank" rel="noopener">Humble<svg class="ic"><use href="#i-link"/></svg></a></div>
+  <p class="match" id="mHb"></p>
   <div class="rail" id="hb"></div>
   <p class="stamp s" id="atHb"></p>
   <div class="row-head"><h2>Playtests</h2><a class="link" href="https://playtestgames.net/#games?status=playtest" target="_blank" rel="noopener">playtestgames.net<svg class="ic"><use href="#i-link"/></svg></a></div>
+  <p class="match" id="mPt"></p>
   <div class="rail" id="pt"></div>
   <p class="stamp s" id="atPt"></p>
  </section>
@@ -116,9 +118,11 @@
     <svg class="ic"><use href="#i-search"/></svg>
     <input name="q" placeholder="Comercio" autocomplete="off" aria-label="Comercio">
    </form>
-   <a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá <svg class="ic"><use href="#i-link"/></svg></a>
+   <div class="srcs"><a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá <svg class="ic"><use href="#i-link"/></svg></a><a class="link" href="https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/" target="_blank" rel="noopener">Ver en PromoPY <svg class="ic"><use href="#i-link"/></svg></a></div>
    <div class="chips" id="recent"></div>
+   <div class="chips" id="pType" aria-label="Tipo de beneficio"></div>
    <div class="chips" id="myBanks" aria-label="Filtrar por banco"></div>
+   <div class="chips" id="pMall" aria-label="Filtrar por shopping"></div>
   </div>
   <div class="promos" id="promos"></div>
 
@@ -126,6 +130,7 @@
    <h1>¿Cuánto cuesta?</h1>
    <form id="pq" class="search big" role="search"><svg class="ic"><use href="#i-search"/></svg><input name="q" placeholder="Ej: tv 55" autocomplete="off" aria-label="Producto"></form>
    <div class="chips" id="pChips" aria-label="Filtrar por tienda"></div>
+   <div class="tools" id="pTools" hidden><label class="sel">Orden <select id="pSort"><option value="pa">Precio ↑</option><option value="pd">Precio ↓</option><option value="off">Mayor descuento</option><option value="n">Nombre</option></select></label><button class="chip" id="pOff" aria-pressed="false">Con descuento</button></div>
   </div>
   <div class="pgrid" id="pres" hidden></div>
   <div class="shops" id="plinks"></div>
@@ -154,6 +159,6 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1794405860"></script>
+<script type="module" src="app.js?v=1794407055"></script>
 </body>
 </html>

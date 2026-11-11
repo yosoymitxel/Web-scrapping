@@ -329,12 +329,15 @@ redrawAll.push(() => drawWl());
 drawWl();
 
 // Bundles de Humble: juegos de portada en carrusel, deseados primero, precio y mínimo por juego
-const isWished = x => wishedId.has(x.steam) || wished.has(norm(x.n));
+const core = t => norm((t || '').replace(/\b(remaster(ed)?|definitive|deluxe|goty|game of the year|anniversary|complete|edition|collection|director'?s cut)\b/gi, ''));
+const isWished = x => wishedId.has(x.steam) || wished.has(norm(x.n)) || games.some(g => core(g.name) && core(g.name) === core(x.n));
+const matchMsg = (id, n, what) => { $(id).innerHTML = !games.length ? '' : n ? `<b>${n}</b> de tus deseados ${what}` : `Ninguno de tus deseados ${what}`; $(id).classList.toggle('on', !!n); };
 const drawRails = () => {
 const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
   .map(b => ({ ...b, name: ent(b.name).replace(/\s*\|\s*Humble Bundle$/i, '') }))
   .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: ent(g) } : { ...g, n: ent(g.n) }); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
   .sort((a, b) => b.hits - a.hits);
+matchMsg('mHb', bundles.reduce((t, b) => t + b.hits, 0), 'en bundles');
 const gameLi = g => {
   const q = encodeURIComponent(g.n), id = g.steam;
   return `<li${isWished(g) ? ' class="hit"' : ''}><span class="cv">${im(g.img || (id ? `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_231x87.jpg` : ''), g.n)}</span><span class="gn">${esc(g.n)}</span><span class="gl">${fav(id ? `https://store.steampowered.com/app/${id}` : `https://store.steampowered.com/search/?term=${q}`, 'store.steampowered.com', 'Steam')}${fav(id ? `https://steamdb.info/app/${id}/` : `https://steamdb.info/search/?a=app&q=${q}`, 'steamdb.info', 'SteamDB')}</span></li>`;
@@ -355,6 +358,7 @@ $('hb').innerHTML = bundles.map(b => {
 // Playtests abiertos; demos solo si el juego está en deseados (deseados primero)
 const pts = (pt.items || []).filter(x => !hidden.has('t' + x.id) && (x.status === 'playtest' || wishedId.has(x.id)))
   .sort((a, b) => wishedId.has(b.id) - wishedId.has(a.id));
+matchMsg('mPt', pts.filter(x => wishedId.has(x.id)).length, 'con demo o playtest');
 $('pt').innerHTML = pts.map(x => tile(`https://store.steampowered.com/app/${x.id}/`, x.img, x.name, wishedId.has(x.id) ? 'Deseado' : '', x.status === 'playtest' ? 'Playtest abierto' : 'Demo', 't' + x.id)).join('')
   || empty('Sin playtests ahora.');
 stamps();
@@ -403,11 +407,19 @@ const promoCard = p => `<article class="promo">
       <small>${esc([p.img ? p.bankShort : '', p.when || (p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small>${p.cards ? `<small>${esc(p.cards.join(' · '))}</small>` : ''}
 </div>
     <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id, p.title)}
-    <span class="src">${A(p.href, 'Bases ' + esc(p.bankShort))}${A('https://www.google.com/maps/search/' + encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay')), icon('pin') + 'Mapa', 'map')}</span></article>`;
-let lastQ = '', hits = [], bankF = '';
+    <span class="src">${A(p.href || 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/', (p.href ? 'Bases ' : 'PromoPY · ') + esc(p.bankShort))}${A('https://www.google.com/maps/search/' + encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay')), icon('pin') + 'Mapa', 'map')}</span></article>`;
+let lastQ = '', hits = [], bankF = '', typeF = 'desc', mallF = '';
+const kind = p => p.discount_percent ? 'desc' : p.installments ? 'cuotas' : 'otro';
 // Chips de banco: filtro con contador sobre los resultados de la búsqueda
 const drawPromos = () => {
-  const list = hits.filter(p => !hidden.has('p' + p.id));
+  const all = hits.filter(p => !hidden.has('p' + p.id));
+  const types = [['desc', 'Descuento'], ['cuotas', 'Cuotas sin interés'], ['', 'Todo']];
+  $('pType').innerHTML = all.length ? types.map(([v, l]) => `<button class="chip" data-t="${v}" aria-pressed="${v === typeF}">${l}<i>${v ? all.filter(p => kind(p) === v).length : all.length}</i></button>`).join('') : '';
+  const byType = all.filter(p => !typeF || kind(p) === typeF);
+  const mallsIn = [...new Set(byType.flatMap(p => mall(p.title).split(', ').filter(Boolean)))].sort();
+  $('pMall').innerHTML = mallsIn.length ? ['', ...mallsIn].map(m => `<button class="chip" data-m="${esc(m)}" aria-pressed="${m === mallF}">${esc(m || 'Todos los shoppings')}<i>${m ? byType.filter(p => mall(p.title).includes(m)).length : byType.length}</i></button>`).join('') : '';
+  if (mallF && !mallsIn.includes(mallF)) mallF = '';
+  const list = byType.filter(p => !mallF || mall(p.title).includes(mallF));
   const banks = [...new Set(list.map(p => p.bankShort))].sort();
   $('myBanks').innerHTML = list.length ? ['', ...banks].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === bankF}">${esc(b || 'Todos')}<i>${b ? list.filter(p => p.bankShort === b).length : list.length}</i></button>`).join('') : '';
   paged($('promos'), list.filter(p => !bankF || p.bankShort === bankF), promoCard, empty(`Sin promos para «${esc(lastQ)}».`));
@@ -426,7 +438,7 @@ const search = async q => {
   const mine = new Set(profile.cards || []);
   const hit = (byTitle.length ? byTitle : promos.filter(p => p.desc?.toLowerCase().includes(ql)))
     .sort((a, b) => mine.has(b.bankShort) - mine.has(a.bankShort) || (b.discount_percent || 0) - (a.discount_percent || 0));
-  hits = hit; bankF = '';
+  hits = hit; bankF = ''; mallF = '';
   drawPromos();
   reveal('#promos .promo');
   recent.splice(0, recent.length, q, ...recent.filter(r => r.toLowerCase() !== ql).slice(0, 7));
@@ -449,6 +461,8 @@ $('myBanks').onclick = e => {
   const b = e.target.closest('[data-b]')?.dataset.b; if (b == null) return;
   bankF = b; drawPromos(); reveal('#promos .promo');
 };
+$('pType').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; typeF = b.dataset.t; bankF = ''; drawPromos(); };
+$('pMall').onclick = e => { const b = e.target.closest('[data-m]'); if (!b) return; mallF = b.dataset.m; bankF = ''; drawPromos(); };
 $('tq').onsubmit = e => { e.preventDefault(); search(e.target.q.value); };
 $('recent').onclick = e => e.target.dataset.q && search(e.target.dataset.q);
 drawRecent();
@@ -474,12 +488,18 @@ async function searchProducts(q) {
   return d;
 }
 let prod = { items: [], shop: '' };
+const offOf = p => p.off || (p.old > p.price ? Math.round((1 - p.price / p.old) * 100) : 0);
+const sorts = { pa: (a, b) => a.price - b.price, pd: (a, b) => b.price - a.price, off: (a, b) => offOf(b) - offOf(a), n: (a, b) => a.name.localeCompare(b.name) };
 const drawProd = () => {
   const { items } = prod;
   const shops = [...new Set(items.map(p => p.shop))].sort();
   $('pChips').innerHTML = items.length ? ['', ...shops].map(n => `<button class="chip" data-s="${esc(n)}" aria-pressed="${n === prod.shop}">${esc(n || 'Todas')}<i>${n ? items.filter(p => p.shop === n).length : items.length}</i></button>`).join('') : '';
-  paged($('pres'), items.filter(p => !prod.shop || p.shop === prod.shop), prodCard, empty('Sin resultados.'));
+  $('pTools').hidden = !items.length;
+  const onlyOff = $('pOff').getAttribute('aria-pressed') === 'true';
+  paged($('pres'), items.filter(p => (!prod.shop || p.shop === prod.shop) && (!onlyOff || offOf(p))).sort(sorts[$('pSort').value]), prodCard, empty('Sin resultados.'));
 };
+$('pSort').onchange = () => drawProd();
+$('pOff').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); drawProd(); };
 $('pChips').onclick = e => { const n = e.target.closest('[data-s]')?.dataset.s; if (n == null) return; prod.shop = n; drawProd(); reveal('#pres .pcard'); };
 $('pq').onsubmit = async e => {
   e.preventDefault();
