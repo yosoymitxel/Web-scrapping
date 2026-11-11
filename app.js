@@ -43,7 +43,7 @@ addEventListener('hashchange', route);
 
 // Asphalt: el siguiente código en grande; un toque copia y abre el canje
 // Perfil privado en Supabase (RLS: cada uno ve lo suyo). Sin sesión, queda en el navegador.
-const SB = 'https://fxjhuodttsbcyncpkcxb.supabase.co', SBK = 'sb_publishable_LWVoByppthU1ihW1LvqdNA_CfSA2chx';
+const SB = 'https://uxhftljmnljmtyynzyie.supabase.co', SBK = 'sb_publishable_-SUBO7VrZiXyeWFRoXzZ9Q_4Vm5xS3g';
 const sb = async (path, opt = {}, tok) => {
   const r = await fetch(SB + path, { ...opt, headers: { apikey: SBK, 'Content-Type': 'application/json', ...(tok && { Authorization: 'Bearer ' + tok }), ...opt.headers } });
   const d = r.status === 204 ? null : await r.json().catch(() => null);
