@@ -372,3 +372,6 @@ a.chip { gap: 6px; }
 .glist li { grid-template-columns: 76px 1fr; column-gap: 10px; padding-right: 14px; align-items: center; }
 .glist .cv { width: 76px; border-radius: 0 6px 6px 0; grid-row: 1 / 3; }
 .glist .gl { margin-top: 0; gap: 8px; }
+
+.fav, .go a.fav, .glist .gl a.fav { display: grid; place-items: center; padding: 0; gap: 0; }
+.fav img { width: 20px; height: 20px; display: block; margin: 0; flex: none; }

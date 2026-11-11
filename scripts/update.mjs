@@ -130,35 +130,7 @@ await step('humble', async () => {
     await sleep(300);
   }
   if (![...out.values()].some(b => b.games?.length)) throw new Error('sin juegos en ningún bundle');
-  // Precio actual más bajo y mínimo histórico de cada juego (CheapShark), como en deseados
-  const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const all = new Map();
-  for (const b of out.values()) for (const g of b.games || []) all.set(norm(g.n), g);
-  console.log('humble imágenes', [...all.values()].filter(g => g.img).length, '/', all.size, [...all.values()].find(g => g.img)?.img);
-  // Reusar precios de la corrida anterior (< 24 h): solo se consultan juegos nuevos
-  const prev = await readFile('data/humble.json', 'utf8').then(JSON.parse).catch(() => ({}));
-  const fresh = Date.now() - new Date(prev.at || 0) < 864e5;
-  const known = new Map((prev.items || []).flatMap(b => b.games || []).filter(g => g.usd != null).map(g => [norm(g.n), g]));
-  const byId = {}; let n = 0;
-  const t0 = Date.now(), BUDGET = (process.env.NOCS ? 0 : 6) * 6e4;
-  for (const [k, g] of all) {
-    const old = known.get(k);
-    if (old && (fresh || Date.now() - t0 > BUDGET)) { Object.assign(g, { usd: old.usd, low: old.low, steam: g.steam || old.steam }); continue; }
-    if (Date.now() - t0 > BUDGET) continue;
-    if (!(all.size % 1) && ++n % 20 === 0) console.log('cheapshark', n, '/', all.size);
-    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(g.n)}&limit=10`).catch(() => []);
-    const m = hit.find(h => norm(h.external) === k);
-    if (m) { g.usd = +m.cheapest; g.steam = +m.steamAppID || undefined; byId[m.gameID] = g; }
-    await sleep(250);
-  }
-  const ids = Object.keys(byId);
-  for (let i = 0; i < ids.length; i += 25) {
-    const info = await get(`https://www.cheapshark.com/api/1.0/games?ids=${ids.slice(i, i + 25).join(',')}`).catch(() => ({}));
-    for (const [gid, { cheapestPriceEver: low }] of Object.entries(info)) if (low?.price) byId[gid].low = +low.price;
-    await sleep(300);
-  }
-  console.log('humble juegos', [...out.values()].map(b => b.games?.length || 0).join(','), 'con img', [...all.values()].filter(g => g.img).length, 'con precio', ids.length, '/', all.size);
-  for (const b of out.values()) for (const g of b.games || []) { const x = all.get(norm(g.n)); if (x && x !== g) Object.assign(g, { usd: x.usd, low: x.low, steam: g.steam || x.steam }); }
+  console.log('humble bundles', out.size, 'juegos', [...out.values()].map(b => b.games?.length || 0).join(','));
   return { items: [...out.values()] };
 });
 
