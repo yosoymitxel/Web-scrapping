@@ -5,7 +5,7 @@ const UA = { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 C
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const get = async (url, as = 'json', tries = 3) => {
   // CheapShark responde 400 a UAs de navegador desde servidores
-  const r = await fetch(url, { headers: url.includes('cheapshark') ? { 'user-agent': 'panel-precios/1.0' } : UA });
+  const r = await fetch(url, { headers: url.includes('cheapshark') ? { 'user-agent': 'panel-precios/1.0' } : UA, signal: AbortSignal.timeout(30000) });
   // CheapShark limita ráfagas: esperar y reintentar
   if (r.status === 429 && tries > 1) { await sleep(+(r.headers.get('retry-after') || 0) * 1000 || 8000); return get(url, as, tries - 1); }
   if (!r.ok) throw new Error(`${r.status} ${url}`);
