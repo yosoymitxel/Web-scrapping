@@ -359,9 +359,31 @@ route();
 // Productos: abre el buscador de cada tienda (sin scraping)
 const GENERAL = [['Rebuscate','https://rebuscate.com/?q=']];
 const SHOPS = [['Nissei','https://nissei.com/py/catalogsearch/result/?q='],['Tienda Naranja','https://tiendanaranja.com.py/catalogsearch/result/?q='],['Contimarket','https://www.contimarket.com/search?Box=False&q='],['Compulandia','https://www.compulandia.com.py/py/store?q='],['Visuar','https://visuar.com.py/searchiqit?s='],['Tecnoga','https://tecnoga.com.py/?post_type=product&s='],['Innovagame','https://www.innovagame.com.py/busqueda?controller=search&s='],['Compras Paraguai','https://www.comprasparaguai.com.br/busca/?q=']];
-$('pq').onsubmit = e => { e.preventDefault(); const q = encodeURIComponent(e.target.q.value.trim()); if (!q) return;
+const gsFmt = n => '₲ ' + Math.round(n).toLocaleString('es-PY');
+const prodCard = p => `<a class="pcard" href="${esc(p.url)}" target="_blank" rel="noopener"><span class="pph">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span><span class="pname">${esc(p.name)}</span><span class="pprice">${gsFmt(p.price)}</span>${p.old ? `<span class="pold"><s>${gsFmt(p.old)}</s> <b>-${p.off}%</b></span>` : ''}<span class="mut">${esc(p.shop)}</span></a>`;
+async function searchProducts(q) {
+  const k = 'prod:' + q.toLowerCase();
+  try { const c = JSON.parse(sessionStorage.getItem(k)); if (c) return c; } catch {}
+  const r = await fetch(`${SB}/functions/v1/products?q=${encodeURIComponent(q)}`);
+  if (!r.ok) throw new Error(r.status);
+  const d = await r.json();
+  try { sessionStorage.setItem(k, JSON.stringify(d)); } catch {}
+  return d;
+}
+$('pq').onsubmit = async e => { e.preventDefault(); const raw = e.target.q.value.trim(); if (!raw) return;
+  const q = encodeURIComponent(raw);
   const row = (t, l) => `<span class="mut">${t}</span>` + l.map(([n, u]) => `<a class="chip" href="${u}${q}" target="_blank" rel="noopener">${n}</a>`).join('');
-  $('shops').innerHTML = `<div class="chips">${row('General', GENERAL)}</div><div class="chips">${row('Electro', SHOPS)}</div>`; };
+  const links = `<div class="chips">${row('General', GENERAL)}</div><div class="chips">${row('Electro', SHOPS)}</div>`;
+  $('shops').innerHTML = `<p class="mut" id="pres">Buscando precios…</p>${links}`;
+  let items = [], shown = 0, ok = true;
+  try { items = await searchProducts(raw); } catch { ok = false; }
+  const box = $('pres'); if (!box || $('pq').q.value.trim() !== raw) return;
+  if (!ok || !items.length) { box.textContent = ok ? 'Sin resultados con precio. Probá en las tiendas:' : 'No se pudieron traer precios. Probá en las tiendas:'; return; }
+  box.outerHTML = `<div id="pres"><div class="pgrid"></div><button class="chip" id="pmore" type="button"></button></div>`;
+  const more = $('pmore'), grid = $('pres').firstChild;
+  const draw = () => { grid.insertAdjacentHTML('beforeend', items.slice(shown, shown + 12).map(prodCard).join('')); shown = Math.min(items.length, shown + 12);
+    more.hidden = shown >= items.length; more.textContent = `Ver más (${items.length - shown})`; };
+  more.onclick = draw; draw(); };
 
 const watch = await load('watch');
 $('watch').innerHTML = (watch.items || []).filter(w => w.off).map(w => `<a class="lk" href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.name)}<span class="pill ac">-${w.off}%</span></a>`).join('');
