@@ -97,8 +97,11 @@ await step('wishlist', async () => {
   const stores = Object.fromEntries((await get('https://www.cheapshark.com/api/1.0/stores').catch(() => [])).map(s => [s.storeID, s.storeName]));
   const csId = {};
   for (const g of games) {
-    const hit = await get(`https://www.cheapshark.com/api/1.0/games?steamAppID=${g.id}`).catch(e => (console.error(e.message), []));
-    if (hit[0]) csId[hit[0].gameID] = g;
+    // CheapShark exige title junto a steamAppID
+    const title = encodeURIComponent(g.name.replace(/[™®:]/g, '').split(' ').slice(0, 2).join(' '));
+    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${title}&steamAppID=${g.id}`).catch(e => (console.error(e.message), []));
+    const m = hit.find(h => +h.steamAppID === g.id);
+    if (m) csId[m.gameID] = g;
     await sleep(300);
   }
   const csIds = Object.keys(csId);
