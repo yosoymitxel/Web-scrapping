@@ -66,6 +66,23 @@ await step('humble', async () => {
     Object.values(o).forEach(walk);
   })(JSON.parse(m[1]));
   if (!out.size) throw new Error('JSON sin bundles');
+  // Juegos de cada bundle, para cruzarlos con la lista de deseados
+  for (const b of out.values()) {
+    const page = await get(b.url, 'text').catch(() => '');
+    const j = page.match(/<script[^>]*id="webpack-bundle-page-data"[^>]*>([\s\S]*?)<\/script>/);
+    if (!j) continue;
+    const names = new Set(); let price = 0;
+    (function walk(o) {
+      if (!o || typeof o !== 'object') return;
+      if (o.human_name && o.machine_name && !o.tier_order) names.add(o.human_name);
+      if (o.price?.amount && o.price?.currency === 'USD') price = Math.max(price, +o.price.amount);
+      Object.values(o).forEach(walk);
+    })(JSON.parse(j[1]));
+    b.games = [...names].filter(n => n !== b.name).slice(0, 60);
+    if (price) b.price = price;
+    await sleep(300);
+  }
+  console.log('humble juegos', [...out.values()].map(b => b.games?.length || 0).join(','));
   return { items: [...out.values()] };
 });
 
@@ -119,4 +136,21 @@ await step('wishlist', async () => {
   console.log('cheapshark', csIds.length, games.filter(g => g.best).length);
   if (!games.length) throw new Error('lista vacía o privada');
   return { games };
+});
+
+// Ofertas vigiladas: la página solo se muestra si anuncia descuento
+await step('watch', async () => {
+  const list = [
+    ['Ableton Live', 'https://www.ableton.com/en/shop/live/?tab=buy-now'],
+    ['Minecraft Deluxe', 'https://www.minecraft.net/es-es/store/minecraft-deluxe-collection-pc'],
+    ['FL Studio', 'https://www.image-line.com/fl-studio/buy-now'],
+  ];
+  const items = [];
+  for (const [name, url] of list) {
+    const t = clean(await get(url, 'text').catch(() => ''));
+    const m = t.match(/(?:save|ahorra|-)\s?(\d{1,2})\s?%|(\d{1,2})\s?%\s?(?:off|de descuento|dto)/i);
+    items.push({ name, url, off: m ? +(m[1] || m[2]) : 0 });
+  }
+  console.log('watch', JSON.stringify(items));
+  return { items };
 });

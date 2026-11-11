@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1794368484">
+<link rel="stylesheet" href="style.css?v=1794368649">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -49,6 +49,7 @@
   <form id="login" class="conv" hidden><label><input name="email" type="email" placeholder="Correo" required></label><label><input name="pass" type="password" placeholder="Contraseña" required></label><button class="btn sm">Entrar</button></form>
   <div class="links-grid" id="links"></div>
   <form id="addLink" class="tools"><label class="search"><input name="name" placeholder="Nombre" required></label><label class="search"><input name="url" type="url" placeholder="https://" required></label><button class="btn sm">Agregar</button></form>
+  <div class="links-grid" id="watch"></div>
   <div class="row-head"><h2>Asphalt</h2></div>
   <div class="hero code-hero" id="asHero"></div>
   <div class="row-head"><h2>Pendientes</h2><button class="link" id="allDone" hidden>Marcar todos</button></div>
@@ -75,6 +76,8 @@
 
   <div class="row-head"><h2>Bundles</h2><a class="link" href="https://www.humblebundle.com/games" target="_blank" rel="noopener">Humble</a></div>
   <div class="rail" id="hb"></div>
+  <div class="row-head"><h2>Playtests y cine</h2></div>
+  <div class="chips"><a class="chip" href="https://playtestgames.net/#games?status=playtest" target="_blank" rel="noopener">Playtests</a><a class="chip" href="https://www.cines.com.py/" target="_blank" rel="noopener">Cartelera</a></div>
   <p class="stamp" id="gmAt"></p>
  </section>
 
@@ -91,12 +94,12 @@
   <div class="promos" id="promos"></div>
   <div class="row-head"><h2>Productos</h2></div>
   <form id="pq" class="search big" role="search"><svg class="ic"><use href="#i-search"/></svg><input name="q" placeholder="Ej: tv 55" aria-label="Producto"></form>
-  <div class="chips" id="shops" style="margin-top:10px"></div>
+  <div id="shops" class="shops"></div>
   <p class="stamp"><a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá</a></p>
  </section>
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1794368484"></script>
+<script type="module" src="app.js?v=1794368649"></script>
 </body>
 </html>

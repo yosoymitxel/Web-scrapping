@@ -198,7 +198,16 @@ $('wlSale').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pre
 drawWl();
 
 // Bundles de Humble
-$('hb').innerHTML = (hb.items || []).map(b => tile(b.url, b.img, b.name, '', b.end ? `hasta ${day(b.end)}` : '')).join('') || empty('Sin datos todavía.');
+const norm = t => (t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const wished = new Map(games.map(g => [norm(g.name), g]));
+const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url)).map(b => ({ ...b, hits: (b.games || []).filter(n => wished.has(norm(n))) }))
+  .sort((a, b) => b.hits.length - a.hits.length);
+$('hb').innerHTML = bundles.map(b => `<article class="tile">
+  <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener">${b.img ? `<img loading="lazy" src="${esc(b.img)}" alt="">` : ''}${b.hits.length ? `<span class="pill ac">${b.hits.length} deseado${b.hits.length > 1 ? 's' : ''}</span>` : ''}</a>
+  ${hideBtn('b' + b.url)}
+  <strong>${esc(b.name)}</strong><span class="sub">${[b.price && (R ? gs(b.price) : '$' + b.price), b.end && 'hasta ' + day(b.end)].filter(Boolean).join(' · ')}</span>
+  ${b.games?.length ? `<details class="inc"><summary>${b.games.length} juegos</summary><ul>${b.games.map(n => { const w = wished.get(norm(n)); return `<li${w ? ' class="hit"' : ''}>${esc(n)}${w && w.usd ? ` <small>${gs(w.usd)}</small>` : ''}</li>`; }).join('')}</ul></details>` : ''}
+</article>`).join('') || empty('Sin datos todavía.');
 $('gmAt').textContent = since(wl.at || fr.at);
 
 // Tarjetas: busca en PromoScraper (se actualiza a diario)
@@ -250,6 +259,11 @@ drawRecent();
 route();
 
 // Productos: abre el buscador de cada tienda (sin scraping)
-const SHOPS = [['Rebuscate','https://rebuscate.com/?q='],['Nissei','https://nissei.com/py/catalogsearch/result/?q='],['Tienda Naranja','https://tiendanaranja.com.py/catalogsearch/result/?q='],['Contimarket','https://www.contimarket.com/search?Box=False&q='],['Compulandia','https://www.compulandia.com.py/py/store?q='],['Visuar','https://visuar.com.py/searchiqit?s='],['Tecnoga','https://tecnoga.com.py/?post_type=product&s='],['Innovagame','https://www.innovagame.com.py/busqueda?controller=search&s='],['Compras Paraguai','https://www.comprasparaguai.com.br/busca/?q=']];
+const GENERAL = [['Rebuscate','https://rebuscate.com/?q=']];
+const SHOPS = [['Nissei','https://nissei.com/py/catalogsearch/result/?q='],['Tienda Naranja','https://tiendanaranja.com.py/catalogsearch/result/?q='],['Contimarket','https://www.contimarket.com/search?Box=False&q='],['Compulandia','https://www.compulandia.com.py/py/store?q='],['Visuar','https://visuar.com.py/searchiqit?s='],['Tecnoga','https://tecnoga.com.py/?post_type=product&s='],['Innovagame','https://www.innovagame.com.py/busqueda?controller=search&s='],['Compras Paraguai','https://www.comprasparaguai.com.br/busca/?q=']];
 $('pq').onsubmit = e => { e.preventDefault(); const q = encodeURIComponent(e.target.q.value.trim()); if (!q) return;
-  $('shops').innerHTML = SHOPS.map(([n, u]) => `<a class="chip" href="${u}${q}" target="_blank" rel="noopener">${n}</a>`).join(''); };
+  const row = (t, l) => `<span class="mut">${t}</span>` + l.map(([n, u]) => `<a class="chip" href="${u}${q}" target="_blank" rel="noopener">${n}</a>`).join('');
+  $('shops').innerHTML = `<div class="chips">${row('General', GENERAL)}</div><div class="chips">${row('Electro', SHOPS)}</div>`; };
+
+const watch = await load('watch');
+$('watch').innerHTML = (watch.items || []).filter(w => w.off).map(w => `<a class="lk" href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.name)}<span class="pill ac">-${w.off}%</span></a>`).join('');

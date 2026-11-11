@@ -200,3 +200,9 @@ s { opacity: .7; }
 .pimg { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; }
 .src { display: block; margin-top: 2px; }
 .src a { text-decoration: underline; text-underline-offset: 3px; }
+.shops { display: grid; gap: 8px; margin-top: 12px; }
+.shops .mut { align-self: center; min-width: 56px; }
+.inc summary { cursor: pointer; color: var(--mut); font-size: 13px; }
+.inc ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--mut); max-height: 220px; overflow: auto; }
+.inc .hit { color: var(--ac); font-weight: 600; }
+.tile .art { display: block; }
