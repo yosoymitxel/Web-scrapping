@@ -7,7 +7,7 @@ const get = async (url, as = 'json', tries = 3) => {
   // CheapShark responde 400 a UAs de navegador desde servidores
   const r = await fetch(url, { headers: url.includes('cheapshark') ? { 'user-agent': 'panel-precios/1.0' } : UA, signal: AbortSignal.timeout(30000) });
   // CheapShark limita ráfagas: esperar y reintentar
-  if (r.status === 429 && tries > 1) { await sleep(+(r.headers.get('retry-after') || 0) * 1000 || 8000); return get(url, as, tries - 1); }
+  if (r.status === 429 && tries > 1) { await sleep(Math.min(+(r.headers.get('retry-after') || 0) * 1000 || 8000, 12000)); return get(url, as, tries - 1); }
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return as === 'json' ? r.json() : r.text();
 };
@@ -98,10 +98,7 @@ await step('humble', async () => {
       if (!globalThis.dbgHb2 && !tl.length) {
         globalThis.dbgHb2 = 1;
         const flat = [...page.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)].map(x => { try { return JSON.parse('"' + x[1] + '"'); } catch { return ''; } }).join('');
-        const keys = [...new Set([...flat.matchAll(/"([A-Za-z_|]*(?:[Ee]nd|[Tt]ier|[Pp]rice|[Ee]xpir|[Dd]eadline|[Dd]ate)[A-Za-z_|]*)":/g)].map(x => x[1]))];
-        console.log('humble claves', keys.slice(0, 50).join(','));
-        for (const k of keys.slice(0, 14)) { const i = flat.indexOf('"' + k + '":'); console.log('humble valor', k, JSON.stringify(flat.slice(i, i + 160))); }
-        console.log('humble html cuenta', JSON.stringify(txt.match(/.{60}Best Value.{120}/)?.[0]), JSON.stringify(page.match(/.{80}Ends in.{80}/)?.[0]), JSON.stringify(page.match(/.{100}Items.{0,10}\$.{100}/)?.[0]));
+        for (const k of ['bundlePage', 'bundleItems', '"currency"', '"amount"', 'endDate', 'end_date', 'timeRemaining', '"price"']) { const i = flat.indexOf(k); console.log('humble flat', k, i, JSON.stringify(i < 0 ? '' : flat.slice(Math.max(0, i - 100), i + 500))); }
       }
       if (!globalThis.dbgHb) { globalThis.dbgHb = 1; console.log('humble nuevo', b.name, 'juegos', games.size, 'tiers', JSON.stringify(tl), 'fin', b.endAt, 'texto', txt.match(/Offer[^$]{0,60}/)?.[0]); }
       await sleep(300);
