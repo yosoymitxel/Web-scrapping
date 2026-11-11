@@ -91,6 +91,7 @@ await step('humble', async () => {
   const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
   const all = new Map();
   for (const b of out.values()) for (const g of b.games || []) all.set(norm(g.n), g);
+  console.log('humble imágenes', [...all.values()].filter(g => g.img).length, '/', all.size, [...all.values()].find(g => g.img)?.img);
   const byId = {}; let n = 0;
   for (const [k, g] of all) {
     if (!(all.size % 1) && ++n % 20 === 0) console.log('cheapshark', n, '/', all.size);
