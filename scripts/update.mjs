@@ -71,6 +71,7 @@ await step('humble', async () => {
         url: 'https://www.humblebundle.com' + o.product_url,
         img: o.tile_image || o.high_res_tile_image || '',
         end: (o['end_date|datetime'] || o.end_date || '').slice(0, 10),
+        endAt: o['end_date|datetime'] || o.end_date || '',
       });
     }
     Object.values(o).forEach(walk);

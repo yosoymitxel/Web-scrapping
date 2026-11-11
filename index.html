@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1794372064">
+<link rel="stylesheet" href="style.css?v=1794402239">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -27,6 +27,7 @@
  <symbol id="i-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/><rect x="2.5" y="4.5" width="19" height="15" rx="4"/></symbol>
  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+ <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.1-3.1a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.1 3.1a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
 </svg>
 
@@ -53,7 +54,7 @@
 
 <main>
  <section id="v-cine" class="view">
-  <div class="row-head first"><h2>Cartelera</h2><a class="link" href="https://www.cines.com.py/" target="_blank" rel="noopener">cines.com.py</a></div>
+  <div class="row-head first"><h2>Cartelera</h2><a class="link" href="https://www.cines.com.py/" target="_blank" rel="noopener">cines.com.py<svg class="ic"><use href="#i-link"/></svg></a></div>
   <div class="chips" id="cineChips"></div>
   <div class="movies" id="movies"></div>
   <p class="stamp" id="cnAt"></p>
@@ -86,6 +87,7 @@
   <div class="row-head first"><h2>Gratis</h2><div class="chips" id="frChips"></div></div>
   <a class="hero game-hero" id="frHero" target="_blank" rel="noopener"></a>
   <div class="rail" id="free"></div>
+  <p class="stamp s" id="atFree"></p>
 
   <div class="row-head">
    <h2>Deseados</h2>
@@ -95,12 +97,14 @@
    </div>
   </div>
   <div class="wl" id="wl"></div>
+  <p class="stamp s" id="atWl"></p>
 
-  <div class="row-head"><h2>Bundles</h2><a class="link" href="https://www.humblebundle.com/games" target="_blank" rel="noopener">Humble</a></div>
+  <div class="row-head"><h2>Bundles</h2><a class="link" href="https://www.humblebundle.com/games" target="_blank" rel="noopener">Humble<svg class="ic"><use href="#i-link"/></svg></a></div>
   <div class="rail" id="hb"></div>
-  <div class="row-head"><h2>Playtests</h2><a class="link" href="https://playtestgames.net/#games?status=playtest" target="_blank" rel="noopener">playtestgames.net</a></div>
+  <p class="stamp s" id="atHb"></p>
+  <div class="row-head"><h2>Playtests</h2><a class="link" href="https://playtestgames.net/#games?status=playtest" target="_blank" rel="noopener">playtestgames.net<svg class="ic"><use href="#i-link"/></svg></a></div>
   <div class="rail" id="pt"></div>
-  <p class="stamp" id="gmAt"></p>
+  <p class="stamp s" id="atPt"></p>
  </section>
 
  <section id="v-tarjetas" class="view">
@@ -110,14 +114,19 @@
     <svg class="ic"><use href="#i-search"/></svg>
     <input name="q" placeholder="Comercio" autocomplete="off" aria-label="Comercio">
    </form>
+   <a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá <svg class="ic"><use href="#i-link"/></svg></a>
    <div class="chips" id="recent"></div>
-   <div class="chips" id="myBanks" aria-label="Mis tarjetas"></div>
+   <div class="chips" id="myBanks" aria-label="Filtrar por banco"></div>
   </div>
   <div class="promos" id="promos"></div>
-  <div class="row-head"><h2>Productos</h2></div>
-  <form id="pq" class="search big" role="search"><svg class="ic"><use href="#i-search"/></svg><input name="q" placeholder="Ej: tv 55" aria-label="Producto"></form>
-  <div id="shops" class="shops"></div>
-  <p class="stamp"><a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá</a></p>
+
+  <div class="hero card-hero prod-hero">
+   <h1>¿Cuánto cuesta?</h1>
+   <form id="pq" class="search big" role="search"><svg class="ic"><use href="#i-search"/></svg><input name="q" placeholder="Ej: tv 55" autocomplete="off" aria-label="Producto"></form>
+   <div class="chips" id="pChips" aria-label="Filtrar por tienda"></div>
+  </div>
+  <div class="pgrid" id="pres" hidden></div>
+  <div class="shops" id="plinks"></div>
  </section>
 </main>
 
@@ -143,6 +152,6 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1794372064"></script>
+<script type="module" src="app.js?v=1794402239"></script>
 </body>
 </html>

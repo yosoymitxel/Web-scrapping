@@ -2,13 +2,13 @@
 :root {
   --bg: #0c0d10; --s1: #15171c; --s2: #1d2027; --line: #2a2e37;
   --tx: #f1f2f4; --mut: #9aa0ab; --ac: #c8f560; --ac-tx: #11140a; --ac-dim: rgb(200 245 96 / .14);
-  --r: 16px; --ease: cubic-bezier(.22, 1, .36, 1);
+  --r: 16px; --warn: #ff8a6b; --ease: cubic-bezier(.22, 1, .36, 1);
   --display: "Bricolage Grotesque", system-ui, sans-serif;
   --body: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f3f2ee; --s1: #ffffff; --s2: #ebe9e3; --line: #dcd9d1;
+    --bg: #efede7; --s1: #ffffff; --s2: #e6e3db; --line: #d2cec3; --warn: #b3261e;
     --tx: #15161a; --mut: #5f636b; --ac: #2f6b00; --ac-tx: #fff; --ac-dim: rgb(47 107 0 / .1);
   }
 }
@@ -244,20 +244,14 @@ s { opacity: .7; }
 .inc .hit { color: var(--ac); font-weight: 600; }
 .tile .art { display: block; }
 .tile > a { display: flex; flex-direction: column; gap: 10px; }
-.mini { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
-.mini img { height: 44px; aspect-ratio: 460 / 215; object-fit: cover; border-radius: 6px; scroll-snap-align: start; flex: none; background: var(--s2); }
-.mini img.hit { outline: 2px solid var(--ac); outline-offset: 1px; }
-.inc li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
-.inc li small { white-space: nowrap; }
 .mall { display: block; color: var(--ac); font-size: 12px; }
 .map { display: inline-flex; align-items: center; gap: 3px; }
 .map .ic { width: 14px; height: 14px; }
 .movies { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 16px; }
 .movie { display: flex; flex-direction: column; gap: 8px; }
-.movie img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 14px; display: block; background: var(--s2); }
 .movie strong { font-weight: 600; line-height: 1.25; }
 .movie .inc ul { padding-left: 0; list-style: none; }
-.movie .inc li { flex-direction: column; gap: 0; }
+.movie .inc li { display: flex; flex-direction: column; gap: 0; padding: 3px 0; }
 #cineChips { margin-top: 4px; }
 @media (max-width: 720px) { .movies { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tabs a { padding: 8px 4px; } }
 
@@ -285,3 +279,69 @@ s { opacity: .7; }
 
 .sec { margin: 0; font: 800 15px var(--display); letter-spacing: -.01em; }
 .stack + .stack { border-top: 1px solid var(--line); padding-top: 18px; }
+
+/* Superficie común: deseados, bundles y productos */
+.surf { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+a.surf:hover, .bundle:hover { border-color: var(--mut); }
+.ext { position: absolute; right: 8px; bottom: 8px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgb(8 9 12 / .6); color: #fff; pointer-events: none; }
+.ext .ic { width: 14px; height: 14px; }
+.link .ic, .go .ic, .src .ic, .lk .ic, .chip .ic, .gl .ic, .pshop .ic, .btn .ic { width: 14px; height: 14px; }
+.link { gap: 6px; }
+a.chip { gap: 6px; }
+.go a, .src a, .lk a { gap: 5px; }
+.lk a { display: flex; align-items: center; }
+.pshop { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Imagen rota: nombre sobre fondo neutro */
+.ph { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; text-align: center; font: 600 13px/1.25 var(--display); color: var(--mut); background: var(--s2); overflow: hidden; overflow-wrap: anywhere; text-wrap: balance; }
+.pimgw .ph, .cv .ph { font-size: 9px; padding: 3px; }
+.game-hero .bg .ph { font-size: 22px; }
+.pph, .poster, .pimgw, .cv { position: relative; display: block; overflow: hidden; background: var(--s2); }
+.poster { aspect-ratio: 2 / 3; border-radius: 14px; }
+.poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pimgw { width: 76px; height: 56px; border-radius: 10px; }
+.promo .pimg { width: 100%; height: 100%; border-radius: 0; object-fit: cover; display: block; }
+
+/* Precio: principal grande, original y mínimo pequeños */
+.px { display: grid; gap: 1px; align-content: start; }
+.px .now { font: 800 22px/1.15 var(--display); letter-spacing: -.02em; }
+.px small { color: var(--mut); font-size: 12px; white-space: nowrap; }
+.px .min { color: var(--ac); font-weight: 600; }
+.px .was b { color: var(--ac); }
+.px .pg { color: var(--tx); font-weight: 600; }
+.px .nop { font: 600 15px var(--body); letter-spacing: 0; color: var(--mut); }
+.pcard .px .now { font-size: 20px; }
+.game .body { grid-template-rows: auto auto 1fr; }
+.game .art .pill.where { left: 10px; right: auto; top: auto; bottom: 10px; background: rgb(8 9 12 / .6); }
+
+/* Bundles */
+#hb { align-items: start; }
+.bundle { gap: 0; }
+.bundle .art { border-radius: 0; }
+.bundle .body { display: grid; gap: 8px; padding: 12px 14px 6px; }
+.bundle.over { opacity: .6; }
+.end { font-size: 13px; font-weight: 600; color: var(--mut); }
+.end.soon { color: var(--tx); }
+.end.hot { color: var(--warn); }
+.end.off { font-weight: 500; }
+.glist { list-style: none; padding: 0; margin: 4px 0 0; display: grid; gap: 10px; max-height: 340px; overflow: auto; font-size: 13px; }
+.glist li { display: grid; grid-template-columns: 72px 1fr; column-gap: 10px; row-gap: 2px; align-items: center; }
+.glist .cv { grid-row: 1 / 3; width: 72px; aspect-ratio: 460 / 215; border-radius: 6px; }
+.glist .cv img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.glist .gn { color: var(--tx); line-height: 1.25; overflow-wrap: anywhere; }
+.glist .hit .gn { color: var(--ac); font-weight: 600; }
+.glist .gl { display: flex; gap: 14px; }
+.glist .gl a { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; color: var(--mut); }
+.glist .gl a:hover { color: var(--tx); }
+
+/* Héroe de productos y filtros */
+.prod-hero { margin-top: 40px; }
+.card-hero > .link { justify-self: start; margin-top: -8px; }
+#pres { margin-top: 16px; margin-bottom: 0; }
+.stamp.s { margin-top: 8px; }
+.shops .chips { align-items: center; }
+.pcard .pshop { margin-top: auto; }
+.go a { display: flex; align-items: center; justify-content: center; }
+.game-hero .bg .ph { font-size: 0; }
+.glist li > * { min-width: 0; }
+.glist .gl { flex-wrap: wrap; gap: 0 12px; }

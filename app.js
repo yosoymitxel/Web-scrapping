@@ -32,6 +32,27 @@ const paged = (box, items, render, none, n = 12) => {
 };
 const empty = msg => `<div class="empty">${msg}</div>`;
 const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
+const A = (href, label, cls = '') => `<a${cls ? ` class="${cls}"` : ''} href="${esc(href)}" target="_blank" rel="noopener">${label}${icon('link')}</a>`;
+const im = (src, name, extra = '') => src ? `<img loading="lazy" src="${esc(src)}" alt="" data-ph="${esc(name)}"${extra ? ' ' + extra : ''}>` : `<span class="ph">${esc(name)}</span>`;
+// Imagen rota: tarjeta con el nombre en lugar del ícono roto
+addEventListener('error', e => {
+  const i = e.target; if (i?.tagName !== 'IMG') return;
+  const ph = document.createElement('span'); ph.className = 'ph';
+  ph.textContent = i.dataset.ph || (() => { try { return new URL(i.src).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  i.replaceWith(ph);
+}, true);
+// Fin de oferta: cuenta regresiva que se refresca sola
+const endAt = b => b.endAt ? new Date(/(Z|[+-]\d\d:?\d\d)$/.test(b.endAt) ? b.endAt : b.endAt + 'Z') : b.end ? new Date(b.end + 'T23:59:59') : null;
+const endInfo = t => {
+  if (!t || isNaN(t)) return null;
+  const ms = t - Date.now();
+  if (ms <= 0) return { txt: 'Terminado', cls: 'off' };
+  if (ms < 6 * 36e5) return { txt: 'Últimas horas', cls: 'hot' };
+  const m = Math.floor(ms / 6e4), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
+  return { txt: 'Termina en ' + (d ? `${d} d ${h} h` : `${h} h`), cls: ms < 48 * 36e5 ? 'soon' : '' };
+};
+const endTag = b => { const t = endAt(b), i = endInfo(t); return i ? `<span class="end ${i.cls}" data-end="${t.getTime()}">${i.txt}</span>` : ''; };
+setInterval(() => document.querySelectorAll('[data-end]').forEach(el => { const i = endInfo(new Date(+el.dataset.end)); if (i) { el.textContent = i.txt; el.className = 'end ' + i.cls; } }), 6e4);
 const num = v => { const n = typeof v === 'string' ? parseFloat(v.replace(/[^0-9.]/g, '')) : v; return Number.isFinite(n) ? n : null; };
 let toastT;
 const toast = msg => { const t = $('toast'); t.innerHTML = icon('check') + esc(msg); t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); };
@@ -141,7 +162,18 @@ const gs = usd => R ? fmt(usd * R) : '';
 const usdS = n => 'US$ ' + n.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = usd => usd == null ? '' : R ? gs(usd) : usdS(usd);
 const worth = w => { const n = num(w); return n == null ? w : money(n); };
-const small = usd => usd == null || !R || cur === 'USD' ? '' : usdS(usd);
+const pygS = n => '₲ ' + Math.round(n).toLocaleString('es-PY');
+// Único formato de precio: principal en la moneda del perfil; abajo el original si difiere; mínimo solo si es menor
+const priceBox = ({ usd = null, pyg = null, min = null, was = null, off = 0, extra = '' }) => {
+  const u = usd ?? (pyg != null && fx.PYG ? pyg / fx.PYG : null);
+  const conv = R && u != null;
+  const main = conv ? money(u) : pyg != null ? pygS(pyg) : usdS(usd);
+  const orig = !conv ? '' : pyg != null ? (cur === 'PYG' ? '' : pygS(pyg)) : (cur === 'USD' ? '' : usdS(usd));
+  const mn = min != null && u != null && min < u && money(min) !== main ? 'mín. ' + money(min) : '';
+  const wu = was == null ? null : usd != null ? was : fx.PYG ? was / fx.PYG : null;
+  const wasT = wu != null && wu > u ? `<small class="was"><s>${money(wu)}</s>${off ? ` <b>-${off}%</b>` : ''}</small>` : '';
+  return `<div class="px"><b class="now">${main}</b>${orig ? `<small>${orig}</small>` : ''}${wasT}${mn ? `<small class="min">${mn}</small>` : ''}${extra}</div>`;
+};
 if (R && motion && !still) motion.animate(0, R, { duration: 1, ease: [.22, 1, .36, 1], onUpdate: v => $('rate').textContent = fmt(v) });
 else $('rate').textContent = R ? fmt(R) : 'Sin cotización';
 $('fxBtn').title = since(fx.at);
@@ -170,7 +202,7 @@ $('profSave').onclick = async () => {
   await saveProfile(); $('prof').close();
   if (changed) location.reload(); else toast('Guardado');
 };
-const drawLinks = () => $('links').innerHTML = profile.links.map((l, i) => `<div class="lk"><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a><button data-del="${i}" aria-label="Quitar ${esc(l.name)}">${icon('x')}</button></div>`).join('');
+const drawLinks = () => $('links').innerHTML = profile.links.map((l, i) => `<div class="lk">${A(l.url, esc(l.name))}<button data-del="${i}" aria-label="Quitar ${esc(l.name)}">${icon('x')}</button></div>`).join('');
 $('links').onclick = e => { const i = e.target.closest('[data-del]')?.dataset.del; if (i != null) { profile.links.splice(i, 1); drawLinks(); saveProfile(); } };
 $('addLink').onsubmit = e => { e.preventDefault(); profile.links.push({ name: e.target.name.value.trim(), url: e.target.url.value }); e.target.reset(); e.target.closest('details').open = false; drawLinks(); saveProfile(); toast('Enlace agregado'); };
 drawLinks();
@@ -236,14 +268,14 @@ const free = fr.items || [];
 const top = free[0];
 if (top) {
   $('frHero').href = top.url;
-  $('frHero').innerHTML = `<div class="bg"><img src="${esc(top.img)}" alt="" fetchpriority="high"></div>
+  $('frHero').innerHTML = `<div class="bg">${im(top.img, top.title, 'fetchpriority="high"')}</div>
     <div class="info"><span class="tagline"><span class="pill ac">Gratis</span><span class="pill">${esc(top.store)}</span>${top.worth ? `<s>${esc(worth(top.worth))}</s>` : ''}${top.end ? `<span>hasta ${day(top.end)}</span>` : ''}</span>
-    <h1>${esc(top.title)}</h1><span class="btn">Conseguir</span></div>`;
+    <h1>${esc(top.title)}</h1><span class="btn">Conseguir${icon('link')}</span></div>`;
 } else $('frHero').hidden = true;
 const groups = ['Todos', ...new Set(free.map(g => g.store))];
 let frStore = 'Todos';
 const tile = (url, img, title, pill, sub, key) => `<article class="tile"><a href="${esc(url)}" target="_blank" rel="noopener">
-  <div class="art">${img ? `<img loading="lazy" src="${esc(img)}" alt="" width="300" height="169">` : ''}${pill ? `<span class="pill">${esc(pill)}</span>` : ''}</div>
+  <div class="art">${im(img, title)}${pill ? `<span class="pill">${esc(pill)}</span>` : ''}<span class="ext">${icon('link')}</span></div>
   <strong>${esc(title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</a>${key ? hideBtn(key, title) : ''}</article>`;
 const drawFree = () => {
   $('frChips').innerHTML = groups.length > 2 ? groups.map(s => `<button class="chip" data-s="${esc(s)}" aria-pressed="${s === frStore}">${esc(s)}<i>${s === 'Todos' ? free.length : free.filter(g => g.store === s).length}</i></button>`).join('') : '';
@@ -263,22 +295,24 @@ const setGames = wl => {
   wished = new Map(games.map(g => [norm(g.name), g]));
   wishedId = new Set(games.map(g => g.id));
   wlAt = wl.at || '';
+  stamps();
+};
+const stamps = () => {
+  const set = (id, at) => { $(id).textContent = at ? since(at) : ''; };
+  set('atFree', fr.at); set('atWl', wlAt); set('atHb', hb.at); set('atPt', pt.at);
 };
 const card = g => {
   const q = encodeURIComponent(g.name);
   const alt = g.best && g.usd != null && g.best.usd < g.usd;
   const usd = alt ? g.best.usd : g.usd;
-  const where = alt ? g.best.store : 'Steam';
-  const lowTxt = !g.free && g.low && g.low.usd != null && (usd == null || g.low.usd < usd) ? `mín ${money(g.low.usd)}` : '';
-  const now = g.free ? 'Gratis' : usd == null ? '<span class="nop">Sin precio</span>' : money(usd);
-  return `<article class="game">
-    <a class="art" href="${alt ? esc(g.best.url) : `https://store.steampowered.com/app/${g.id}`}" target="_blank" rel="noopener" aria-label="${esc(g.name)} en ${esc(where)}"><img loading="lazy" src="${esc(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`)}" alt="" width="460" height="215">${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}</a>
+  const px = g.free ? '<div class="px"><b class="now">Gratis</b></div>' : usd == null ? '<div class="px"><b class="now nop">Sin precio</b></div>' : priceBox({ usd, min: g.low?.usd });
+  return `<article class="game surf">
+    <a class="art" href="${alt ? esc(g.best.url) : `https://store.steampowered.com/app/${g.id}`}" target="_blank" rel="noopener" aria-label="${esc(g.name)} en ${esc(alt ? g.best.store : 'Steam')}">${im(g.img || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/capsule_231x87.jpg`, g.name)}${g.off ? `<span class="pill ac">-${g.off}%</span>` : ''}${alt ? `<span class="pill where">${esc(g.best.store)}</span>` : ''}<span class="ext">${icon('link')}</span></a>
     ${hideBtn('g' + g.id, g.name)}
     <div class="body">
       <span class="name">${esc(g.name)}</span>
-      <div class="now">${now}</div>
-      <small class="low">${esc([where, !g.free && small(usd), lowTxt].filter(Boolean).join(' · '))}</small>
-      <div class="go"><a href="https://steamdb.info/app/${g.id}/" target="_blank" rel="noopener">SteamDB</a><a href="https://www.eneba.com/latam/store/all?text=${q}" target="_blank" rel="noopener">Eneba</a><a href="https://www.humblebundle.com/store/search?search=${q}" target="_blank" rel="noopener">Humble</a></div>
+      ${px}
+      <div class="go">${A(`https://steamdb.info/app/${g.id}/`, 'SteamDB')}${A(`https://www.eneba.com/latam/store/all?text=${q}`, 'Eneba')}${A(`https://www.humblebundle.com/store/search?search=${q}`, 'Humble')}</div>
     </div></article>`;
 };
 const drawWl = () => {
@@ -297,20 +331,29 @@ const drawRails = () => {
 const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
   .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: g } : g); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
   .sort((a, b) => b.hits - a.hits);
-$('hb').innerHTML = bundles.map(b => `<article class="tile bundle">
-  <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener">${b.img ? `<img loading="lazy" src="${esc(b.img)}" alt="">` : ''}${b.hits ? `<span class="pill ac">${b.hits} deseado${b.hits > 1 ? 's' : ''}</span>` : ''}</a>
+const gameLi = g => {
+  const q = encodeURIComponent(g.n), id = g.steam;
+  return `<li${isWished(g) ? ' class="hit"' : ''}><span class="cv">${im(g.img || (id ? `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_231x87.jpg` : ''), g.n)}</span><span class="gn">${esc(g.n)}</span><span class="gl">${A(id ? `https://store.steampowered.com/app/${id}` : `https://store.steampowered.com/search/?term=${q}`, 'Steam')}${A(id ? `https://steamdb.info/app/${id}/` : `https://steamdb.info/search/?a=app&q=${q}`, 'SteamDB')}</span></li>`;
+};
+const over = b => { const t = endAt(b); return t && t < Date.now(); };
+bundles.sort((a, b) => over(a) - over(b));
+$('hb').innerHTML = bundles.map(b => {
+  const n = b.gs.length, p = num(b.price);
+  return `<article class="tile bundle surf${over(b) ? ' over' : ''}">
+  <a class="art" href="${esc(b.url)}" target="_blank" rel="noopener" aria-label="${esc(b.name)}">${im(b.img, b.name)}${b.hits ? `<span class="pill ac">${b.hits} deseado${b.hits > 1 ? 's' : ''}</span>` : ''}<span class="ext">${icon('link')}</span></a>
   ${hideBtn('b' + b.url, b.name)}
-  ${b.gs.some(g => g.img) ? `<div class="mini">${b.gs.filter(g => g.img).slice(0, 12).map(g => `<img loading="lazy" src="${esc(g.img)}" alt="${esc(g.n)}" title="${esc(g.n)}"${isWished(g) ? ' class="hit"' : ''}>`).join('')}</div>` : ''}
-  <strong>${esc(b.name)}</strong><span class="sub">${[num(b.price) && money(num(b.price)), b.end && 'hasta ' + day(b.end)].filter(Boolean).join(' · ')}</span>
-  ${b.gs.length ? `<details class="inc"><summary>${b.gs.length} juegos${b.gs.filter(g => g.usd).length * 2 >= b.gs.length ? ' · valen ' + money(b.gs.reduce((t, g) => t + (g.usd || 0), 0)) : ''}</summary><ul>${b.gs.map(g => `<li${isWished(g) ? ' class="hit"' : ''}><span>${esc(g.n)}</span><small>${[money(g.usd), g.low != null && 'mín ' + money(g.low)].filter(Boolean).join(' · ')}</small></li>`).join('')}</ul></details>` : ''}
-</article>`).join('') || empty('Sin datos todavía.');
+  <div class="body"><strong>${esc(b.name)}</strong>
+  ${p ? priceBox({ usd: p, extra: n ? `<small class="pg">≈ ${money(p / n)} por juego</small>` : '' }) : ''}
+  ${endTag(b)}
+  ${n ? `<details class="inc"><summary>${n} juegos</summary><ul class="glist">${b.gs.map(gameLi).join('')}</ul></details>` : ''}</div>
+</article>`; }).join('') || empty('Sin datos todavía.');
 
 // Playtests abiertos; demos solo si el juego está en deseados (deseados primero)
 const pts = (pt.items || []).filter(x => !hidden.has('t' + x.id) && (x.status === 'playtest' || wishedId.has(x.id)))
   .sort((a, b) => wishedId.has(b.id) - wishedId.has(a.id));
 $('pt').innerHTML = pts.map(x => tile(`https://store.steampowered.com/app/${x.id}/`, x.img, x.name, wishedId.has(x.id) ? 'Deseado' : '', x.status === 'playtest' ? 'Playtest abierto' : 'Demo', 't' + x.id)).join('')
   || empty('Sin playtests ahora.');
-$('gmAt').textContent = since(wlAt || fr.at);
+stamps();
 };
 redrawAll.push(() => drawRails());
 drawRails();
@@ -320,7 +363,7 @@ const loadWl = async () => {
   const user = (profile.steam || '').trim();
   if (!user) return;
   const c = store.get('panel.wl', null);
-  if (c?.user === user && c.data?.games) { setGames(c.data); drawWl(); drawRails(); if (Date.now() - c.t < 6 * 36e5) return; }
+  if (c?.user === user && c.data?.games) { setGames(c.data); drawWl(); drawRails(); if (Date.now() - c.t < 3 * 36e5) return; }
   else $('wl').innerHTML = '<div class="skel"></div><div class="skel"></div>';
   try {
     const r = await fetch(`${SB}/functions/v1/steam-wishlist?user=${encodeURIComponent(user)}`);
@@ -351,19 +394,27 @@ const recent = store.get('recent');
 redrawAll.push(() => lastQ && search(lastQ));
 const drawRecent = () => $('recent').innerHTML = recent.map(r => `<button class="chip" data-q="${esc(r)}">${esc(r)}</button>`).join('');
 const promoCard = p => `<article class="promo">
-    ${p.img ? `<img class="pimg" loading="lazy" src="${esc(p.img)}" alt="">` : `<span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>`}
+    ${p.img ? `<span class="pimgw">${im(p.img, p.title, 'class="pimg"')}</span>` : `<span class="bank" style="background:${esc(p.bankColor || '#555')}">${esc(p.bankShort)}</span>`}
     <div class="pbody"><strong>${esc(p.title)}</strong>${mall(p.title) ? `<small class="mall">${esc(mall(p.title))}</small>` : ''}
       <small>${esc([p.img ? p.bankShort : '', p.when || (p.days || []).join(', '), p.installments ? `${p.installments} cuotas` : ''].filter(Boolean).join(' · ') || (p.category || '').replace(/^\W+/, ''))}</small>${p.cards ? `<small>${esc(p.cards.join(' · '))}</small>` : ''}
 </div>
     <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id, p.title)}
-    <span class="src"><a href="${esc(p.href)}" target="_blank" rel="noopener">Bases ${esc(p.bankShort)}</a><a class="map" href="https://www.google.com/maps/search/${encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay'))}" target="_blank" rel="noopener">${icon('pin')}Mapa</a></span></article>`;
-let lastQ = '';
+    <span class="src">${A(p.href, 'Bases ' + esc(p.bankShort))}${A('https://www.google.com/maps/search/' + encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay')), icon('pin') + 'Mapa', 'map')}</span></article>`;
+let lastQ = '', hits = [], bankF = '';
+// Chips de banco: filtro con contador sobre los resultados de la búsqueda
+const drawPromos = () => {
+  const list = hits.filter(p => !hidden.has('p' + p.id));
+  const banks = [...new Set(list.map(p => p.bankShort))].sort();
+  $('myBanks').innerHTML = list.length ? ['', ...banks].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === bankF}">${esc(b || 'Todos')}<i>${b ? list.filter(p => p.bankShort === b).length : list.length}</i></button>`).join('') : '';
+  paged($('promos'), list.filter(p => !bankF || p.bankShort === bankF), promoCard, empty(`Sin promos para «${esc(lastQ)}».`));
+};
 const search = async q => {
   q = q.trim(); if (!q) return; lastQ = q;
   const ql = q.toLowerCase();
   document.querySelector('#tq input').value = q;
   $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
   $('promos').innerHTML = '<div class="skel"></div><div class="skel"></div>';
+  $('myBanks').innerHTML = '';
   await getPromos();
   if (!promos) { $('promos').innerHTML = empty('No se pudo leer PromoScraper. Probá en Tarjeteá.'); promos = undefined; return; }
   // Primero por nombre del comercio; la descripción solo si no hay ninguno
@@ -371,24 +422,28 @@ const search = async q => {
   const mine = new Set(profile.cards || []);
   const hit = (byTitle.length ? byTitle : promos.filter(p => p.desc?.toLowerCase().includes(ql)))
     .sort((a, b) => mine.has(b.bankShort) - mine.has(a.bankShort) || (b.discount_percent || 0) - (a.discount_percent || 0));
-  drawBanks();
-  paged($('promos'), hit.filter(p => !hidden.has('p' + p.id)), promoCard, empty(`Sin promos para «${esc(q)}».`));
+  hits = hit; bankF = '';
+  drawPromos();
   reveal('#promos .promo');
   recent.splice(0, recent.length, q, ...recent.filter(r => r.toLowerCase() !== ql).slice(0, 7));
   store.set('recent', recent); drawRecent();
 };
-// Mis tarjetas: sus promos van primero; se guardan en el perfil
+// Mis tarjetas (perfil): sus promos van primero
 const drawBanks = () => {
   if (!promos) return;
   const mine = new Set(profile.cards || []);
-  $('myBanks').innerHTML = $('profBanks').innerHTML = [...new Set(promos.map(p => p.bankShort))].sort().map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${mine.has(b)}">${esc(b)}</button>`).join('');
+  $('profBanks').innerHTML = [...new Set(promos.map(p => p.bankShort))].sort().map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${mine.has(b)}">${esc(b)}</button>`).join('');
 };
-$('myBanks').onclick = $('profBanks').onclick = e => {
-  const b = e.target.dataset.b; if (!b) return;
+$('profBanks').onclick = e => {
+  const b = e.target.closest('[data-b]')?.dataset.b; if (!b) return;
   const mine = new Set(profile.cards || []);
   mine.has(b) ? mine.delete(b) : mine.add(b);
   profile.cards = [...mine]; saveProfile(); drawBanks();
-  const q = document.querySelector('#tq input').value; if (q) search(q);
+  if (lastQ) search(lastQ);
+};
+$('myBanks').onclick = e => {
+  const b = e.target.closest('[data-b]')?.dataset.b; if (b == null) return;
+  bankF = b; drawPromos(); reveal('#promos .promo');
 };
 $('tq').onsubmit = e => { e.preventDefault(); search(e.target.q.value); };
 $('recent').onclick = e => e.target.dataset.q && search(e.target.dataset.q);
@@ -399,12 +454,9 @@ route();
 // Productos: abre el buscador de cada tienda (sin scraping)
 const GENERAL = [['Rebuscate','https://rebuscate.com/?q=']];
 const SHOPS = [['Nissei','https://nissei.com/py/catalogsearch/result/?q='],['Tienda Naranja','https://tiendanaranja.com.py/catalogsearch/result/?q='],['Contimarket','https://www.contimarket.com/search?Box=False&q='],['Compulandia','https://www.compulandia.com.py/py/store?q='],['Visuar','https://visuar.com.py/searchiqit?s='],['Tecnoga','https://tecnoga.com.py/?post_type=product&s='],['Innovagame','https://www.innovagame.com.py/busqueda?controller=search&s='],['Compras Paraguai','https://www.comprasparaguai.com.br/busca/?q=']];
-const pyg = n => fx.PYG ? n / fx.PYG : null;
-const prodMoney = n => cur === 'PYG' ? '₲ ' + Math.round(n).toLocaleString('es-PY') : pyg(n) != null ? money(pyg(n)) : '₲ ' + Math.round(n).toLocaleString('es-PY');
 const prodCard = p => {
   const off = p.off || (p.old > p.price ? Math.round((1 - p.price / p.old) * 100) : 0);
-  const sm = cur === 'USD' ? '' : pyg(p.price) != null ? usdS(pyg(p.price)) : '';
-  return `<a class="pcard" href="${esc(p.url)}" target="_blank" rel="noopener"><span class="pph">${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span><span class="pname">${esc(p.name)}</span><span class="pprice">${prodMoney(p.price)}</span><span class="pold">${sm}</span><span class="pold">${p.old > p.price ? `<s>${prodMoney(p.old)}</s>` : ''}${off ? ` <b>-${off}%</b>` : ''}</span><span class="mut pshop">${esc(p.shop)}</span></a>`;
+  return `<a class="pcard surf" href="${esc(p.url)}" target="_blank" rel="noopener"><span class="pph">${im(p.img, p.name, 'referrerpolicy="no-referrer"')}</span><span class="pname">${esc(p.name)}</span>${priceBox({ pyg: p.price, was: p.old > p.price ? p.old : null, off })}<span class="mut pshop">${esc(p.shop)}${icon('link')}</span></a>`;
 };
 async function searchProducts(q) {
   const k = q.toLowerCase(), all = store.get('panel.prod', {});
@@ -417,25 +469,35 @@ async function searchProducts(q) {
   store.set('panel.prod', Object.fromEntries(keep));
   return d;
 }
-$('pq').onsubmit = async e => { e.preventDefault(); const raw = e.target.q.value.trim(); if (!raw) return;
+let prod = { items: [], shop: '' };
+const drawProd = () => {
+  const { items } = prod;
+  const shops = [...new Set(items.map(p => p.shop))].sort();
+  $('pChips').innerHTML = items.length ? ['', ...shops].map(n => `<button class="chip" data-s="${esc(n)}" aria-pressed="${n === prod.shop}">${esc(n || 'Todas')}<i>${n ? items.filter(p => p.shop === n).length : items.length}</i></button>`).join('') : '';
+  paged($('pres'), items.filter(p => !prod.shop || p.shop === prod.shop), prodCard, empty('Sin resultados.'));
+};
+$('pChips').onclick = e => { const n = e.target.closest('[data-s]')?.dataset.s; if (n == null) return; prod.shop = n; drawProd(); reveal('#pres .pcard'); };
+$('pq').onsubmit = async e => {
+  e.preventDefault();
+  const raw = e.target.q.value.trim(); if (!raw) return;
   const q = encodeURIComponent(raw);
-  const row = (t, l) => `<span class="mut">${t}</span>` + l.map(([n, u]) => `<a class="chip" href="${u}${q}" target="_blank" rel="noopener">${n}</a>`).join('');
-  const links = `<div class="chips">${row('General', GENERAL)}</div><div class="chips">${row('Electro', SHOPS)}</div>`;
-  $('shops').innerHTML = `<p class="mut" id="pres">Buscando precios…</p>${links}`;
-  let items = [], shown = 0, ok = true;
-  try { items = await searchProducts(raw); } catch { ok = false; }
-  const box = $('pres'); if (!box || $('pq').q.value.trim() !== raw) return;
-  if (!ok || !items.length) { box.textContent = ok ? 'Sin resultados con precio. Probá en las tiendas:' : 'No se pudieron traer precios. Probá en las tiendas:'; return; }
-  box.outerHTML = `<div id="pres"><div class="pgrid"></div><button class="chip" id="pmore" type="button"></button></div>`;
-  const more = $('pmore'), grid = $('pres').firstChild;
-  const draw = () => { grid.insertAdjacentHTML('beforeend', items.slice(shown, shown + 12).map(prodCard).join('')); shown = Math.min(items.length, shown + 12);
-    more.hidden = shown >= items.length; more.textContent = `Ver más (${items.length - shown})`; };
-  more.onclick = draw; draw(); };
+  const row = (t, l) => `<div class="chips"><span class="mut">${t}</span>${l.map(([n, u]) => A(u + q, esc(n), 'chip')).join('')}</div>`;
+  $('plinks').innerHTML = `<p class="mut">Buscar directo en cada tienda</p>${row('General', GENERAL)}${row('Electro', SHOPS)}`;
+  prod = { items: [], shop: '' };
+  $('pres').hidden = false; $('pChips').innerHTML = '';
+  paged($('pres'), [], prodCard, '<div class="skel"></div><div class="skel"></div>');
+  let ok = true;
+  try { prod.items = await searchProducts(raw); } catch { ok = false; }
+  if ($('pq').q.value.trim() !== raw) return;
+  if (!ok) return paged($('pres'), [], prodCard, empty('No se pudieron traer precios. Probá en las tiendas de abajo.'));
+  if (!prod.items.length) return paged($('pres'), [], prodCard, empty('Sin resultados con precio. Probá en las tiendas de abajo.'));
+  drawProd(); reveal('#pres .pcard');
+};
 
 const watch = await load('watch');
 const onSale = (watch.items || []).filter(w => w.off);
 $('watchHead').hidden = !onSale.length;
-$('watch').innerHTML = onSale.map(w => `<div class="lk"><a href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.name)}</a><span class="pill ac">-${w.off}%</span></div>`).join('');
+$('watch').innerHTML = onSale.map(w => `<div class="lk">${A(w.url, esc(w.name))}<span class="pill ac">-${w.off}%</span></div>`).join('');
 
 // Cartelera: película primero; filtro por cine
 const movies = cn.movies || [];
@@ -445,7 +507,7 @@ const drawCine = () => {
   $('cineChips').innerHTML = ['', ...cinesAll].map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${c === cine}">${esc(c || 'Todos')}</button>`).join('');
   const list = movies.filter(m => !cine || m.at.some(a => a.cine === cine));
   paged($('movies'), list, m => `<article class="movie">
-    <a href="${esc(m.url)}" target="_blank" rel="noopener" aria-label="${esc(m.title)}"><img loading="lazy" src="${esc(m.img)}" alt="" width="200" height="300"></a>
+    <a class="poster" href="${esc(m.url)}" target="_blank" rel="noopener" aria-label="${esc(m.title)}">${im(m.img, m.title)}<span class="ext">${icon('link')}</span></a>
     <strong>${esc(m.title)}</strong>
     <details class="inc"><summary>${cine ? 'Horarios' : m.at.length + ' cine' + (m.at.length > 1 ? 's' : '')}</summary><ul>${m.at.filter(a => !cine || a.cine === cine).map(a => `<li><span>${esc(a.cine)}</span><small>${esc(a.times.join(' · '))}</small></li>`).join('')}</ul></details>
   </article>`, empty('Sin cartelera todavía.'));
