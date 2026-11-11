@@ -46,9 +46,9 @@ $('usd').oninput = e => $('pyg').value = e.target.value ? Math.round(e.target.va
 $('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).toFixed(2) : '';
 
 // Pestañas por hash
-const views = ['asphalt', 'juegos', 'tarjetas'];
+const views = ['juegos', 'tarjetas', 'asphalt'];
 const route = () => {
-  const v = views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'asphalt';
+  const v = views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'juegos';
   views.forEach(id => $('v-' + id).classList.toggle('on', id === v));
   document.querySelectorAll('.tabs a').forEach(a => a.hash === '#' + v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
   reveal(['.hero', '.row-head', '.code', '.tile', '.game', '.promo'].map(c => `#v-${v} ${c}`).join());
@@ -57,7 +57,53 @@ const route = () => {
 addEventListener('hashchange', route);
 
 // Asphalt: el siguiente código en grande; un toque copia y abre el canje
-const used = new Set(store.get('used'));
+// Perfil privado en Supabase (RLS: cada uno ve lo suyo). Sin sesión, queda en el navegador.
+const SB = 'https://fxjhuodttsbcyncpkcxb.supabase.co', SBK = 'sb_publishable_LWVoByppthU1ihW1LvqdNA_CfSA2chx';
+const sb = async (path, opt = {}, tok) => {
+  const r = await fetch(SB + path, { ...opt, headers: { apikey: SBK, 'Content-Type': 'application/json', ...(tok && { Authorization: 'Bearer ' + tok }), ...opt.headers } });
+  const d = r.status === 204 ? null : await r.json().catch(() => null);
+  if (!r.ok) throw new Error(d?.msg || d?.message || d?.error_description || r.status);
+  return d;
+};
+let sess = store.get('panel.sess', null);
+const token = async () => {
+  if (!sess) return null;
+  if (Date.now() > sess.until) {
+    try { const d = await sb('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: sess.refresh }) }); sess = { token: d.access_token, refresh: d.refresh_token, until: Date.now() + (d.expires_in - 60) * 1e3, email: d.user.email }; store.set('panel.sess', sess); }
+    catch { sess = null; store.set('panel.sess', null); return null; }
+  }
+  return sess.token;
+};
+const profile = store.get('panel.profile', { links: [], used: [] });
+const saveProfile = async () => {
+  store.set('panel.profile', profile);
+  const t = await token(); if (!t) return;
+  sb('/rest/v1/panel_profiles?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ data: profile, updated_at: new Date().toISOString() }) }, t).catch(e => toast('Nube: ' + e.message));
+};
+const pull = async () => {
+  const t = await token(); if (!t) return;
+  const [row] = await sb('/rest/v1/panel_profiles?select=data', {}, t).catch(() => []);
+  if (row?.data) Object.assign(profile, row.data); else saveProfile();
+  store.set('panel.profile', profile);
+};
+await pull();
+const drawAcct = () => $('acct').textContent = sess ? sess.email + ' · Salir' : 'Entrar';
+$('acct').onclick = () => { if (sess) { sess = null; store.set('panel.sess', null); drawAcct(); } else $('login').hidden = !$('login').hidden; };
+$('login').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    const d = await sb('/auth/v1/token?grant_type=password', { method: 'POST', body: JSON.stringify({ email: e.target.email.value, password: e.target.pass.value }) });
+    sess = { token: d.access_token, refresh: d.refresh_token, until: Date.now() + (d.expires_in - 60) * 1e3, email: d.user.email };
+    store.set('panel.sess', sess); $('login').hidden = true; await pull(); location.reload();
+  } catch (err) { toast(err.message); }
+};
+drawAcct();
+const drawLinks = () => $('links').innerHTML = profile.links.map((l, i) => `<a class="lk" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}<button data-del="${i}" aria-label="Quitar">×</button></a>`).join('');
+$('links').onclick = e => { const i = e.target.dataset.del; if (i != null) { e.preventDefault(); profile.links.splice(i, 1); drawLinks(); saveProfile(); } };
+$('addLink').onsubmit = e => { e.preventDefault(); profile.links.push({ name: e.target.name.value, url: e.target.url.value }); e.target.reset(); drawLinks(); saveProfile(); };
+drawLinks();
+
+const used = new Set([...store.get('used'), ...(profile.used || [])]);
 const seen = new Set(store.get('seen'));
 const isNew = c => seen.size && !seen.has(c.code);
 const redeemBtn = (code, cls = '') => `<button class="btn ${cls}" data-c="${esc(code)}" aria-label="Canjear ${esc(code)}">${icon('copy')}<span>Canjear</span></button>`;
@@ -81,7 +127,7 @@ const drawCodes = () => {
 };
 drawCodes();
 store.set('seen', (as.codes || []).map(c => c.code));
-$('allDone').onclick = () => { (as.codes || []).forEach(c => used.add(c.code)); store.set('used', [...used]); drawCodes(); toast('Todos marcados'); };
+$('allDone').onclick = () => { (as.codes || []).forEach(c => used.add(c.code)); store.set('used', [...used]); profile.used = [...used]; saveProfile(); drawCodes(); toast('Todos marcados'); };
 $('v-asphalt').addEventListener('click', async e => {
   const b = e.target.closest('button[data-c], button[data-undo]'); if (!b) return;
   if (b.dataset.c) {
@@ -89,7 +135,7 @@ $('v-asphalt').addEventListener('click', async e => {
     window.open(REDEEM, 'gameloft');
     used.add(b.dataset.c); toast(`${b.dataset.c} copiado`);
   } else used.delete(b.dataset.undo);
-  store.set('used', [...used]); drawCodes();
+  store.set('used', [...used]); profile.used = [...used]; saveProfile(); drawCodes();
   reveal('#asHero');
 });
 
@@ -130,6 +176,7 @@ const card = g => {
         <div><span class="now">${price}</span>${g.usd ? `<small>${gs(g.usd)} · Steam</small>` : ''}</div>
         ${cheaper ? `<a class="alt" href="${esc(g.best.url)}" target="_blank" rel="noopener">$${g.best.usd.toFixed(2)} en ${esc(g.best.store)}<span>${gs(g.best.usd)}</span></a>` : ''}
       </div>
+      ${g.low ? `<small class="low">Mínimo histórico $${g.low.usd.toFixed(2)} · ${day(g.low.date)}</small>` : ''}
       <div class="go"><a href="https://steamdb.info/app/${g.id}/" target="_blank" rel="noopener">SteamDB</a><a href="https://www.eneba.com/latam/store/all?text=${q}" target="_blank" rel="noopener">Eneba</a><a href="https://www.humblebundle.com/store/search?search=${q}" target="_blank" rel="noopener">Humble</a></div>
     </div></article>`;
 };

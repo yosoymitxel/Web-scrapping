@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1794364111">
+<link rel="stylesheet" href="style.css?v=1794364239">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -28,9 +28,9 @@
  <div class="bar">
   <span class="brand">Panel</span>
   <nav class="tabs" aria-label="Secciones">
-   <a href="#asphalt"><svg class="ic"><use href="#i-car"/></svg><span>Asphalt</span><b class="count" id="nAs"></b></a>
    <a href="#juegos"><svg class="ic"><use href="#i-pad"/></svg><span>Juegos</span></a>
    <a href="#tarjetas"><svg class="ic"><use href="#i-card"/></svg><span>Tarjetas</span></a>
+   <a href="#asphalt"><svg class="ic"><use href="#i-car"/></svg><span>Más</span><b class="count" id="nAs"></b></a>
   </nav>
   <button class="fx" id="fxBtn" aria-expanded="false" aria-controls="fxBox" aria-label="Dólar y conversor">
    <span>US$1</span><b id="rate">—</b>
@@ -45,6 +45,11 @@
 
 <main>
  <section id="v-asphalt" class="view">
+  <div class="row-head first"><h2>Enlaces</h2><button class="link" id="acct">Entrar</button></div>
+  <form id="login" class="conv" hidden><label><input name="email" type="email" placeholder="Correo" required></label><label><input name="pass" type="password" placeholder="Contraseña" required></label><button class="btn sm">Entrar</button></form>
+  <div class="links-grid" id="links"></div>
+  <form id="addLink" class="tools"><label class="search"><input name="name" placeholder="Nombre" required></label><label class="search"><input name="url" type="url" placeholder="https://" required></label><button class="btn sm">Agregar</button></form>
+  <div class="row-head"><h2>Asphalt</h2></div>
   <div class="hero code-hero" id="asHero"></div>
   <div class="row-head"><h2>Pendientes</h2><button class="link" id="allDone" hidden>Marcar todos</button></div>
   <ul class="codes" id="codes"></ul>
@@ -88,6 +93,6 @@
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1794364111"></script>
+<script type="module" src="app.js?v=1794364239"></script>
 </body>
 </html>
