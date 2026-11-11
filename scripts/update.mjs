@@ -99,8 +99,8 @@ await step('wishlist', async () => {
   const csId = {};
   for (const g of games) {
     // CheapShark exige title junto a steamAppID
-    const title = encodeURIComponent(g.name.replace(/[™®:]/g, '').split(' ').slice(0, 2).join(' '));
-    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${title}&steamAppID=${g.id}`).catch(e => (console.error(e.message), []));
+    const title = encodeURIComponent(g.name.replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/)[0]);
+    const hit = await get(`https://www.cheapshark.com/api/1.0/games?title=${title}&steamAppID=${g.id}&limit=60`).catch(e => (console.error(e.message), []));
     const m = hit.find(h => +h.steamAppID === g.id);
     if (m) csId[m.gameID] = g;
     await sleep(300);
@@ -108,7 +108,9 @@ await step('wishlist', async () => {
   const csIds = Object.keys(csId);
   for (let i = 0; i < csIds.length; i += 25) {
     const info = await get(`https://www.cheapshark.com/api/1.0/games?ids=${csIds.slice(i, i + 25).join(',')}`).catch(e => (console.error(e.message), {}));
-    for (const [gid, { deals = [] }] of Object.entries(info)) {
+    for (const [gid, { deals = [], cheapestPriceEver: low }] of Object.entries(info)) {
+      // Mínimo histórico en cualquier tienda (precio US), con fecha
+      if (low?.price) csId[gid].low = { usd: +low.price, date: new Date(low.date * 1000).toISOString().slice(0, 10) };
       const best = deals.filter(d => d.storeID !== '1').sort((a, b) => a.price - b.price)[0];
       if (best) csId[gid].best = { usd: +best.price, store: stores[best.storeID] || 'Otra', url: `https://www.cheapshark.com/redirect?dealID=${best.dealID}` };
     }
