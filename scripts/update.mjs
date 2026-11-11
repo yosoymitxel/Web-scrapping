@@ -78,7 +78,7 @@ await step('humble', async () => {
       if (o.price?.amount && o.price?.currency === 'USD') price = Math.max(price, +o.price.amount);
       Object.values(o).forEach(walk);
     })(JSON.parse(j[1]));
-    b.games = [...names].filter(n => n !== b.name).slice(0, 60);
+    b.games = [...names].filter(n => n !== b.name && !/charity|plan\b|subscription|donat/i.test(n)).slice(0, 60);
     if (price) b.price = price;
     await sleep(300);
   }
