@@ -27,23 +27,7 @@ const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
 let toastT;
 const toast = msg => { const t = $('toast'); t.innerHTML = icon('check') + esc(msg); t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); };
 
-const [as, fx, fr, wl, hb, pt, cn, sh] = await Promise.all(['asphalt', 'fx', 'free', 'wishlist', 'humble', 'playtest', 'cines', 'shoppings'].map(load));
-
-// Dólar: un solo tipo de cambio para todos los precios
-const R = fx.PYG || 0;
-const fmt = n => '₲ ' + Math.round(n).toLocaleString('es-PY');
-const gs = usd => R ? fmt(usd * R) : '';
-if (R && motion && !still) motion.animate(0, R, { duration: 1, ease: [.22, 1, .36, 1], onUpdate: v => $('rate').textContent = fmt(v) });
-else $('rate').textContent = R ? fmt(R) : '—';
-$('fxBtn').title = since(fx.at);
-$('fxBtn').onclick = () => {
-  const open = $('fxBox').hidden;
-  $('fxBox').hidden = !open;
-  $('fxBtn').setAttribute('aria-expanded', open);
-  if (open) { $('usd').focus(); motion?.animate('#fxBox', { opacity: [0, 1], y: [-6, 0] }, { duration: .25 }); }
-};
-$('usd').oninput = e => $('pyg').value = e.target.value ? Math.round(e.target.value * R) : '';
-$('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).toFixed(2) : '';
+const [as, fx, fr, hb, pt, cn, sh] = await Promise.all(['asphalt', 'fx', 'free', 'humble', 'playtest', 'cines', 'shoppings'].map(load));
 
 // Pestañas por hash
 const views = ['juegos', 'tarjetas', 'cine', 'asphalt'];
@@ -74,11 +58,11 @@ const token = async () => {
   }
   return sess.token;
 };
-const profile = store.get('panel.profile', { links: [], used: [] });
+const profile = { links: [], used: [], cards: [], hidden: [], steam: '', cur: 'PYG', ...store.get('panel.profile', {}) };
 const saveProfile = async () => {
   store.set('panel.profile', profile);
   const t = await token(); if (!t) return;
-  sb('/rest/v1/panel_profiles?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ data: profile, updated_at: new Date().toISOString() }) }, t).catch(e => toast('Nube: ' + e.message));
+  return sb('/rest/v1/panel_profiles?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ data: profile, updated_at: new Date().toISOString() }) }, t).catch(e => toast('Nube: ' + e.message));
 };
 const pull = async () => {
   const t = await token(); if (!t) return;
@@ -86,18 +70,91 @@ const pull = async () => {
   if (row?.data) Object.assign(profile, row.data); else saveProfile();
   store.set('panel.profile', profile);
 };
+// Volver del correo (confirmar cuenta o cambiar contraseña): el enlace trae la sesión en el hash
+let recovery = false;
+{
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('access_token')) {
+    history.replaceState(null, '', location.pathname);
+    try {
+      const u = await sb('/auth/v1/user', {}, h.get('access_token'));
+      sess = { token: h.get('access_token'), refresh: h.get('refresh_token'), until: Date.now() + (+h.get('expires_in') - 60) * 1e3, email: u.email };
+      store.set('panel.sess', sess); recovery = h.get('type') === 'recovery';
+    } catch {}
+  }
+}
 await pull();
-const drawAcct = () => $('acct').textContent = sess ? sess.email + ' · Salir' : 'Entrar';
-$('acct').onclick = () => { if (sess) { sess = null; store.set('panel.sess', null); drawAcct(); } else $('login').hidden = !$('login').hidden; };
+const SITE = 'https://yosoymitxel.github.io/Web-scrapping/';
+const setSess = d => { sess = { token: d.access_token, refresh: d.refresh_token, until: Date.now() + (d.expires_in - 60) * 1e3, email: d.user.email }; store.set('panel.sess', sess); };
+const loginMsg = t => $('loginMsg').textContent = t;
+const drawAcct = () => {
+  $('acctLbl').textContent = sess ? sess.email.split('@')[0] : 'Entrar';
+  $('login').hidden = !!sess; $('me').hidden = !sess; $('logout').hidden = !sess;
+  $('meMail').textContent = sess?.email || '';
+};
 $('login').onsubmit = async e => {
   e.preventDefault();
+  const email = e.target.email.value.trim(), pass = e.target.pass.value, up = e.submitter?.value === 'up';
+  if (pass.length < 6) return loginMsg('La contraseña necesita 6 caracteres o más.');
   try {
-    const d = await sb('/auth/v1/token?grant_type=password', { method: 'POST', body: JSON.stringify({ email: e.target.email.value, password: e.target.pass.value }) });
-    sess = { token: d.access_token, refresh: d.refresh_token, until: Date.now() + (d.expires_in - 60) * 1e3, email: d.user.email };
-    store.set('panel.sess', sess); $('login').hidden = true; await pull(); location.reload();
-  } catch (err) { toast(err.message); }
+    if (up) {
+      const d = await sb('/auth/v1/signup?redirect_to=' + encodeURIComponent(SITE), { method: 'POST', body: JSON.stringify({ email, password: pass }) });
+      if (!d.access_token) return loginMsg('Cuenta creada. Confirmá el enlace que llegó a tu correo y después entrá acá.');
+      setSess(d);
+    } else setSess(await sb('/auth/v1/token?grant_type=password', { method: 'POST', body: JSON.stringify({ email, password: pass }) }));
+    await pull(); location.reload();
+  } catch (err) { loginMsg(err.message); }
 };
+$('forgot').onclick = async () => {
+  const email = $('login').email.value.trim();
+  if (!email) return loginMsg('Escribí tu correo y tocá de nuevo.');
+  try { await sb('/auth/v1/recover?redirect_to=' + encodeURIComponent(SITE), { method: 'POST', body: JSON.stringify({ email }) }); loginMsg('Te enviamos un enlace para elegir otra contraseña.'); }
+  catch (err) { loginMsg(err.message); }
+};
+$('setPass').onclick = async () => {
+  const p = $('newPass').value;
+  if (p.length < 6) return toast('Mínimo 6 caracteres');
+  try { await sb('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ password: p }) }, await token()); $('newPass').value = ''; toast('Contraseña cambiada'); }
+  catch (err) { toast(err.message); }
+};
+$('logout').onclick = () => { sess = null; store.set('panel.sess', null); $('prof').close(); location.reload(); };
 drawAcct();
+if (recovery) { $('prof').showModal(); $('newPass').focus(); }
+
+// Moneda del perfil: un solo tipo de cambio para todos los precios
+const CURS = { PYG: ['₲', 0], ARS: ['AR$', 2], BRL: ['R$', 2], EUR: ['€', 2], USD: ['US$', 2] };
+const cur = CURS[profile.cur] ? profile.cur : 'PYG';
+const [SYM, DEC] = CURS[cur];
+const R = cur === 'USD' ? 1 : fx[cur] || 0;
+const fmt = n => SYM + ' ' + n.toLocaleString('es-PY', { minimumFractionDigits: DEC, maximumFractionDigits: DEC });
+const gs = usd => R ? fmt(usd * R) : '';
+if (R && motion && !still) motion.animate(0, R, { duration: 1, ease: [.22, 1, .36, 1], onUpdate: v => $('rate').textContent = fmt(v) });
+else $('rate').textContent = R ? fmt(R) : '—';
+$('fxBtn').title = since(fx.at);
+$('curSym').textContent = SYM;
+$('fxBtn').onclick = () => {
+  const open = $('fxBox').hidden;
+  $('fxBox').hidden = !open;
+  $('fxBtn').setAttribute('aria-expanded', open);
+  if (open) { $('usd').focus(); motion?.animate('#fxBox', { opacity: [0, 1], y: [-6, 0] }, { duration: .25 }); }
+};
+$('usd').oninput = e => $('pyg').value = e.target.value ? +(e.target.value * R).toFixed(DEC) : '';
+$('pyg').oninput = e => $('usd').value = e.target.value ? (e.target.value / R).toFixed(2) : '';
+
+// Hoja de perfil: Steam, moneda y bancos
+$('curSel').innerHTML = Object.entries(CURS).map(([k, [s]]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${k} (${s})</option>`).join('');
+const openProf = () => { $('steamUser').value = profile.steam || ''; drawBanks(); getPromos().then(drawBanks); $('prof').showModal(); };
+$('acctBtn').onclick = openProf;
+document.addEventListener('click', e => { if (e.target.closest('[data-prof]')) openProf(); });
+$('profClose').onclick = () => $('prof').close();
+$('prof').addEventListener('click', e => { if (e.target === $('prof')) $('prof').close(); });
+$('profSave').onclick = async () => {
+  const steam = $('steamUser').value.trim().replace(/^.*steamcommunity\.com\/(?:id|profiles)\/([^/?#]+).*$/i, '$1').replace(/\/$/, '');
+  const changed = steam !== profile.steam || $('curSel').value !== profile.cur;
+  Object.assign(profile, { steam, cur: $('curSel').value });
+  await saveProfile(); $('prof').close();
+  if (changed) location.reload(); else toast('Guardado');
+};
 const drawLinks = () => $('links').innerHTML = profile.links.map((l, i) => `<a class="lk" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}<button data-del="${i}" aria-label="Quitar">×</button></a>`).join('');
 $('links').onclick = e => { const i = e.target.dataset.del; if (i != null) { e.preventDefault(); profile.links.splice(i, 1); drawLinks(); saveProfile(); } };
 $('addLink').onsubmit = e => { e.preventDefault(); profile.links.push({ name: e.target.name.value, url: e.target.url.value }); e.target.reset(); drawLinks(); saveProfile(); };

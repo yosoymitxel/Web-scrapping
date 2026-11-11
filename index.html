@@ -119,7 +119,8 @@
    <label class="field"><span>Contraseña</span><input name="pass" type="password" autocomplete="current-password" minlength="6"></label>
    <div class="tools wrap"><button class="btn sm" value="in">Entrar</button><button class="btn sm ghost" value="up" formnovalidate>Crear cuenta</button><button class="link" type="button" id="forgot">Olvidé mi contraseña</button></div>
   </form>
-  <div id="me" class="stack" hidden><p class="mut">Sesión: <b id="meMail"></b></p></div>
+  <div id="me" class="stack" hidden><p class="mut">Sesión: <b id="meMail"></b></p>
+   <label class="field"><span>Nueva contraseña</span><input id="newPass" type="password" minlength="6" autocomplete="new-password"></label><div><button class="btn sm ghost" id="setPass" type="button">Cambiar contraseña</button></div></div>
   <div class="stack">
    <label class="field"><span>Usuario de Steam (nombre de perfil o SteamID64)</span><input id="steamUser" placeholder="ej: yosoymitxel" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
    <label class="field"><span>Moneda de conversión</span><select id="curSel"></select></label>
