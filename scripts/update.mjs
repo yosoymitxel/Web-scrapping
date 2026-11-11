@@ -78,13 +78,25 @@ await step('humble', async () => {
     if (!b.img && meta('og:image')) b.img = clean(meta('og:image'));
     if (meta('og:title') && b.name.toLowerCase() === b.url.split('/').pop().replace(/-/g, ' ')) b.name = clean(meta('og:title')).replace(/\s*\(.*$/, '');
     if (!j) {
-      if (!globalThis.dbgHb) {
-        globalThis.dbgHb = 1;
-        const flat = [...page.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)].map(x => { try { return JSON.parse('"' + x[1] + '"'); } catch { return ''; } }).join('');
-        const at = k => { const i = flat.indexOf(k); return i < 0 ? 'NO' : flat.slice(Math.max(0, i - 150), i + 450); };
-        console.log('humble página', b.url, 'largo', page.length, 'flat', flat.length, 'scripts', [...page.matchAll(/<script([^>]*)>/g)].map(x => x[1].replace(/src="[^"]*"/, '').trim()).filter(Boolean).slice(0, 10).join('|'));
-        for (const k of ['tier_pricing_data', 'human_name', 'end_date', 'price|money', 'resolved_paths', 'steam_app_id']) console.log('humble clave', k, JSON.stringify(at(k)));
+      // Página Next.js: HTML con lista de juegos (imagen + nombre + MSRP), niveles "8 Items$315.27$25.00" y cuenta regresiva
+      const txt = clean(page.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' '));
+      const h1 = page.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1];
+      if (h1) b.name = clean(h1).replace(/^Humble\s+/, '').replace(/\s+Bundle$/, '');
+      const games = new Map();
+      for (const li of page.split(/<li[\s>]/).slice(1)) {
+        if (!/MSRP/.test(li)) continue;
+        const alt = li.match(/<img[^>]*alt="([^"]+)"/)?.[1];
+        const src = li.match(/<img[^>]*src="[^"]*?url=([^&"]+)/)?.[1];
+        const n = clean(alt || '') || clean(li.replace(/<img[^>]*>/g, ' ')).replace(/\s*MSRP.*$/, '');
+        if (n && !games.has(n)) games.set(n, { n, img: src ? decodeURIComponent(src) : '' });
       }
+      const tl = [...txt.matchAll(/(\d+) Items\s*\$([\d,.]+)\s*\$([\d,.]+)/g)].map(x => ({ n: +x[1], msrp: +x[2].replace(/,/g, ''), price: +x[3].replace(/,/g, '') }));
+      const cd = txt.match(/Ends in (\d+)d\s*:\s*(\d+)h\s*:\s*(\d+)m\s*:\s*(\d+)s/i);
+      if (cd) { b.endAt = new Date(Date.now() + (((+cd[1] * 24 + +cd[2]) * 60 + +cd[3]) * 60 + +cd[4]) * 1000).toISOString(); b.end = b.endAt.slice(0, 10); }
+      b.games = [...games.values()].slice(0, 60);
+      if (tl.length) { tl.sort((x, y) => x.price - y.price); b.price = tl[tl.length - 1].price; b.min = tl[0].price; b.tiers = tl; }
+      if (!globalThis.dbgHb) { globalThis.dbgHb = 1; console.log('humble nuevo', b.name, 'juegos', games.size, 'tiers', JSON.stringify(tl), 'fin', b.endAt, 'texto', txt.match(/Offer[^$]{0,60}/)?.[0]); }
+      await sleep(300);
       continue;
     }
     const items = new Map(); const tiers = new Set(); let tierData = null, sample = null;
@@ -110,6 +122,7 @@ await step('humble', async () => {
     if (tl.length) { b.price = tl[tl.length - 1]; b.min = tl[0]; }
     await sleep(300);
   }
+  if (![...out.values()].some(b => b.games?.length)) throw new Error('sin juegos en ningún bundle');
   // Precio actual más bajo y mínimo histórico de cada juego (CheapShark), como en deseados
   const norm = t => t.toLowerCase().replace(/[^a-z0-9]/g, '');
   const all = new Map();
