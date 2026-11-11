@@ -32,6 +32,7 @@ const paged = (box, items, render, none, n = 12) => {
 };
 const empty = msg => `<div class="empty">${msg}</div>`;
 const icon = id => `<svg class="ic"><use href="#i-${id}"/></svg>`;
+const ent = t => String(t ?? '').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d)).replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 const A = (href, label, cls = '') => `<a${cls ? ` class="${cls}"` : ''} href="${esc(href)}" target="_blank" rel="noopener">${label}${icon('link')}</a>`;
 const fav = (href, domain, name) => `<a class="fav" href="${esc(href)}" target="_blank" rel="noopener" aria-label="${esc(name)}" title="${esc(name)}"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" alt="" width="20" height="20" data-fl="${esc(name[0])}"></a>`;
 const im = (src, name, extra = '') => src ? `<img loading="lazy" src="${esc(src)}" alt="" data-ph="${esc(name)}"${extra ? ' ' + extra : ''}>` : `<span class="ph">${esc(name)}</span>`;
@@ -331,8 +332,8 @@ drawWl();
 const isWished = x => wishedId.has(x.steam) || wished.has(norm(x.n));
 const drawRails = () => {
 const bundles = (hb.items || []).filter(b => !hidden.has('b' + b.url))
-  .map(b => ({ ...b, name: String(b.name || '').replace(/\s*\|\s*Humble Bundle$/i, '') }))
-  .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: g } : g); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
+  .map(b => ({ ...b, name: ent(b.name).replace(/\s*\|\s*Humble Bundle$/i, '') }))
+  .map(b => { const gs_ = (b.games || []).map(g => typeof g === 'string' ? { n: ent(g) } : { ...g, n: ent(g.n) }); return { ...b, gs: gs_.sort((x, y) => isWished(y) - isWished(x)), hits: gs_.filter(isWished).length }; })
   .sort((a, b) => b.hits - a.hits);
 const gameLi = g => {
   const q = encodeURIComponent(g.n), id = g.steam;
