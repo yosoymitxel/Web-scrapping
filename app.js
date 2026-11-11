@@ -364,7 +364,7 @@ const prodCard = p => `<a class="pcard" href="${esc(p.url)}" target="_blank" rel
 async function searchProducts(q) {
   const k = 'prod:' + q.toLowerCase();
   try { const c = JSON.parse(sessionStorage.getItem(k)); if (c) return c; } catch {}
-  const r = await fetch(`${SB}/functions/v1/products?q=${encodeURIComponent(q)}`);
+  const r = await fetch(`https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=${encodeURIComponent(q)}`);
   if (!r.ok) throw new Error(r.status);
   const d = await r.json();
   try { sessionStorage.setItem(k, JSON.stringify(d)); } catch {}
