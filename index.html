@@ -23,6 +23,7 @@
  <symbol id="i-card" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h4"/></symbol>
  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+ <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
 </svg>
 
@@ -38,11 +39,12 @@
   <button class="fx" id="fxBtn" aria-expanded="false" aria-controls="fxBox" aria-label="Dólar y conversor">
    <span>US$1</span><b id="rate">—</b>
   </button>
+  <button class="acct-btn" id="acctBtn" aria-haspopup="dialog" aria-label="Perfil"><svg class="ic"><use href="#i-user"/></svg><span id="acctLbl">Entrar</span></button>
  </div>
  <div class="conv" id="fxBox" hidden>
   <label><span>US$</span><input id="usd" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>
   <svg class="ic"><use href="#i-swap"/></svg>
-  <label><span>₲</span><input id="pyg" type="number" inputmode="numeric" min="0" step="any" placeholder="0"></label>
+  <label><span id="curSym">₲</span><input id="pyg" type="number" inputmode="numeric" min="0" step="any" placeholder="0"></label>
  </div>
 </header>
 
@@ -55,8 +57,7 @@
  </section>
 
  <section id="v-asphalt" class="view">
-  <div class="row-head first"><h2>Enlaces</h2><button class="link" id="acct">Entrar</button></div>
-  <form id="login" class="conv" hidden><label><input name="email" type="email" placeholder="Correo" required></label><label><input name="pass" type="password" placeholder="Contraseña" required></label><button class="btn sm">Entrar</button></form>
+  <div class="row-head first"><h2>Enlaces</h2></div>
   <div class="links-grid" id="links"></div>
   <form id="addLink" class="tools"><label class="search"><input name="name" placeholder="Nombre" required></label><label class="search"><input name="url" type="url" placeholder="https://" required></label><button class="btn sm">Agregar</button></form>
   <div class="links-grid" id="watch"></div>
@@ -108,6 +109,25 @@
   <p class="stamp"><a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá</a></p>
  </section>
 </main>
+
+<dialog id="prof" class="sheet" aria-labelledby="profT">
+ <div class="sheet-in">
+  <div class="row-head first"><h2 id="profT">Perfil</h2><button class="link" id="profClose">Cerrar</button></div>
+  <form id="login" class="stack">
+   <p class="mut" id="loginMsg">Entrá o creá una cuenta para guardar todo en la nube. Sin cuenta, queda en este navegador.</p>
+   <label class="field"><span>Correo</span><input name="email" type="email" autocomplete="email" required></label>
+   <label class="field"><span>Contraseña</span><input name="pass" type="password" autocomplete="current-password" minlength="6"></label>
+   <div class="tools wrap"><button class="btn sm" value="in">Entrar</button><button class="btn sm ghost" value="up" formnovalidate>Crear cuenta</button><button class="link" type="button" id="forgot">Olvidé mi contraseña</button></div>
+  </form>
+  <div id="me" class="stack" hidden><p class="mut">Sesión: <b id="meMail"></b></p></div>
+  <div class="stack">
+   <label class="field"><span>Usuario de Steam (nombre de perfil o SteamID64)</span><input id="steamUser" placeholder="ej: yosoymitxel" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+   <label class="field"><span>Moneda de conversión</span><select id="curSel"></select></label>
+   <div><span class="lbl">Mis bancos y tarjetas</span><div class="chips" id="profBanks"></div></div>
+  </div>
+  <div class="tools wrap"><button class="btn sm" id="profSave">Guardar</button><button class="btn sm ghost" id="logout" hidden>Salir</button></div>
+ </div>
+</dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="app.js?v=1794369017"></script>

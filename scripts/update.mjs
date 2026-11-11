@@ -128,9 +128,7 @@ await step('humble', async () => {
     (function walk(o) {
       if (!o || typeof o !== 'object') return;
       if (o.human_name && o.machine_name && !o.tier_order && !items.has(o.human_name)) {
-        // La imagen viene en distintas claves según el ítem: la primera URL de imagen que aparezca
-        const img = Object.entries(o).find(([k, v]) => /image/i.test(k) && typeof v === 'string' && /^https?:/.test(v))?.[1] || '';
-        if (!items.size && !img) console.log('humble claves', Object.keys(o).join(','));
+        const img = o.resolved_paths?.featured_image || '';
         items.set(o.human_name, { n: o.human_name, img });
       }
       if (o.price?.amount && o.price?.currency === 'USD') price = Math.max(price, +o.price.amount);
@@ -171,8 +169,9 @@ await step('watch', async () => {
   ];
   const items = [];
   for (const [name, url] of list) {
-    const t = clean(await get(url, 'text').catch(() => ''));
-    const m = t.match(/(?:save|ahorra|-)\s?(\d{1,2})\s?%|(\d{1,2})\s?%\s?(?:off|de descuento|dto)/i);
+    const html = (await get(url, 'text').catch(() => '')).replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ');
+    const t = clean(html);
+    const m = t.match(/(?:save|ahorra(?:\s+hasta)?|up to|hasta)\s+(\d{1,2})\s?%|(?<![\w.])(\d{1,2})\s?%\s*(?:off\b|de descuento|descuento|dto\b|discount)/i);
     items.push({ name, url, off: m ? +(m[1] || m[2]) : 0 });
   }
   console.log('watch', JSON.stringify(items));
