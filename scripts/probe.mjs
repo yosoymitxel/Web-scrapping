@@ -1,12 +1,12 @@
-import { readFile } from 'node:fs/promises';
-process.env.ONLY = process.env.STEPS || 'humble';
-await import('./update.mjs');
-const j = async n => JSON.parse(await readFile(`data/${n}.json`, 'utf8'));
-const c = await j('cines');
-console.log('CINES películas', c.movies.length, 'con horarios', c.movies.filter(m => m.at.some(a => a.times.length)).length, 'cines distintos', new Set(c.movies.flatMap(m => m.at.map(a => a.cine))).size);
-console.log('CINES ejemplo', JSON.stringify(c.movies[0]).slice(0, 500));
-console.log('WATCH', JSON.stringify((await j('watch')).items));
-if (!process.env.ONLY.includes('humble')) process.exit(0);
-const h = await j('humble');
-const g = h.items.flatMap(b => b.games || []);
-console.log('HUMBLE bundles', h.items.length, 'juegos', g.length, 'con img', g.filter(x => x.img).length, 'ej', g.find(x => x.img)?.img);
+// Diagnóstico puntual (no commitea): GNB API y listas de shoppings
+const UA = { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36' };
+const t = u => fetch(u, { headers: UA }).then(async r => [r.status, await r.text()]).catch(e => [0, e.message]);
+const [, js] = await t('https://www.beneficiosbancognb.com.py/v2/main.87ca0669a586571d.js');
+console.log('GNB js', js.length);
+console.log([...new Set(js.match(/["'`][^"'`\s]{0,80}(api|Api|beneficio|categor|comercio|promo)[^"'`\s]{0,80}["'`]/g) || [])].slice(0, 80).join('\n'));
+for (const u of ['https://www.delsol.com.py/shopping', 'https://www.mariscal.com.py/locales-comerciales', 'https://paseolagaleria.com.py/locales.php']) {
+  const [s, h] = await t(u);
+  console.log('\n==', u, s, h.length);
+  console.log([...new Set(h.match(/(fetch|axios|ajax|\$\.get|\.json|wp-json|api)[^\n]{0,160}/g) || [])].slice(0, 15).join('\n'));
+  console.log('links', [...new Set(h.match(/href="[^"]*(local|tienda|store|page)[^"]*"/gi) || [])].slice(0, 15).join(' '));
+}
