@@ -238,7 +238,7 @@ await step('shoppings', async () => {
       const h = await page(i === 1 ? url : `https://paseolagaleria.com.py/locales-page-${i}.php`);
       const before = set.size;
       for (const m of h.matchAll(/<h3[^>]*g-font-size-20[^>]*>([^<]+)<\/h3>/g)) add(set, m[1]);
-      if (set.size === before) break;
+      if (set.size === before && i > 1) break;
       await sleep(200);
     }
     out.push({ name: 'Paseo La Galería', url, stores: [...set] });
