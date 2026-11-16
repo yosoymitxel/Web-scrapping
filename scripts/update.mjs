@@ -213,25 +213,49 @@ await step('cines', async () => {
 
 // Locales de shoppings: nombres sueltos para ubicar promos por comercio
 await step('shoppings', async () => {
-  const list = [
-    ['Pinedo Shopping', 'https://pinedo.com.py/tiendas/'],
-    ['Shopping del Sol', 'https://www.delsol.com.py/shopping'],
-    ['Paseo La Galería', 'https://paseolagaleria.com.py/locales.php'],
-    ['Shopping Mariscal', 'https://www.mariscal.com.py/locales-comerciales'],
-    ['Multiplaza', 'https://www.multiplaza.com.py/locales'],
-  ];
+  const page = u => get(u, 'text').catch(e => (console.error(u, e.message), ''));
+  const bad = /^(locales?|piso|horario|shopping|contacto|inicio|tiendas|ver m|buscar|categor|información|novedades)/i;
+  const add = (set, t) => { t = clean(t || ''); if (t.length > 1 && t.length < 50 && /[a-záéíóúñ]/i.test(t) && !bad.test(t)) set.add(t); };
+  const generic = (h, set) => {
+    for (const m of h.matchAll(/<(h[1-6]|a|strong|span|p|li|figcaption|div)[^>]*>([^<]{2,40})<\/\1>/g)) add(set, m[2]);
+    for (const m of h.matchAll(/alt="([^"]{2,40})"/g)) add(set, m[1]);
+  };
   const out = [];
-  for (const [name, url] of list) {
-    const h = await get(url, 'text').catch(e => (console.error(name, e.message), ''));
-    const stores = new Set();
-    for (const m of h.matchAll(/<(h[1-6]|a|strong|span|p|li|figcaption|div)[^>]*>([^<]{2,40})<\/\1>/g)) {
-      const t = clean(m[2]);
-      if (/[a-záéíóúñ]/i.test(t) && !/local|piso|horario|shopping|contacto|inicio|tiendas|ver m/i.test(t)) stores.add(t);
-    }
-    for (const m of h.matchAll(/alt="([^"]{2,40})"/g)) stores.add(clean(m[1]));
-    console.log('shopping', name, stores.size);
-    out.push({ name, url, stores: [...stores] });
-    await sleep(300);
+  // Pinedo y Multiplaza: HTML con nombres en alt/títulos
+  for (const [name, url] of [['Pinedo Shopping', 'https://pinedo.com.py/tiendas/'], ['Multiplaza', 'https://www.multiplaza.com.py/locales']]) {
+    const set = new Set(); generic(await page(url), set); out.push({ name, url, stores: [...set] });
   }
+  // Del Sol: lista de tiendas en un <script type="application/json">
+  {
+    const set = new Set(), url = 'https://www.delsol.com.py/shopping', h = await page(url);
+    for (const m of h.matchAll(/<script[^>]*json[^>]*>\s*(\[[\s\S]*?\])\s*<\/script>/g)) { try { JSON.parse(m[1]).forEach(x => add(set, x.title)); } catch {} }
+    out.push({ name: 'Shopping del Sol', url, stores: [...set] });
+  }
+  // La Galería: páginas locales.php, locales-page-2.php, ... con <h3> por local
+  {
+    const set = new Set(), url = 'https://paseolagaleria.com.py/locales.php';
+    for (let i = 1; i <= 12; i++) {
+      const h = await page(i === 1 ? url : `https://paseolagaleria.com.py/locales-page-${i}.php`);
+      const before = set.size;
+      for (const m of h.matchAll(/<h3[^>]*g-font-size-20[^>]*>([^<]+)<\/h3>/g)) add(set, m[1]);
+      if (set.size === before) break;
+      await sleep(200);
+    }
+    out.push({ name: 'Paseo La Galería', url, stores: [...set] });
+  }
+  // Mariscal: una página por categoría (/locales/<id>/<rubro>)
+  {
+    const set = new Set(), url = 'https://www.mariscal.com.py/locales-comerciales', h = await page(url);
+    const cats = [...new Set([...h.matchAll(/href="(https:\/\/www\.mariscal\.com\.py\/locales\/\d+\/[^"]+)"/g)].map(m => m[1]))];
+    for (const c of cats) {
+      const ch = await page(c);
+      for (const m of ch.matchAll(/<h[2-5][^>]*>\s*(?:<a[^>]*>)?\s*([^<]{2,50}?)\s*(?:<\/a>)?\s*<\/h[2-5]>/g)) add(set, m[1]);
+      for (const m of ch.matchAll(/alt="([^"]{2,40})"/g)) add(set, m[1]);
+      await sleep(150);
+    }
+    console.log('mariscal categorías', cats.length);
+    out.push({ name: 'Shopping Mariscal', url, stores: [...set] });
+  }
+  for (const m of out) console.log('shopping', m.name, m.stores.length, m.stores.slice(0, 8).join(' | '));
   return { items: out };
 });
