@@ -231,16 +231,19 @@ await step('shoppings', async () => {
     for (const m of h.matchAll(/<script[^>]*json[^>]*>\s*(\[[\s\S]*?\])\s*<\/script>/g)) { try { JSON.parse(m[1]).forEach(x => add(set, x.title)); } catch {} }
     out.push({ name: 'Shopping del Sol', url, stores: [...set] });
   }
-  // La Galería: páginas locales.php, locales-page-2.php, ... con <h3> por local
+  // La Galería: la lista la arma su JS; se lee con Chromium (Playwright) desde las imágenes img/locales
   {
     const set = new Set(), url = 'https://paseolagaleria.com.py/locales.php';
-    for (let i = 1; i <= 12; i++) {
-      const h = await page(i === 1 ? url : `https://paseolagaleria.com.py/locales-page-${i}.php`);
-      const before = set.size;
-      for (const m of h.matchAll(/<h3[^>]*g-font-size-20[^>]*>([^<]+)<\/h3>/g)) add(set, m[1]);
-      if (set.size === before && i > 1) break;
-      await sleep(200);
-    }
+    try {
+      const { chromium } = await import('playwright');
+      const b = await chromium.launch(); const pg = await b.newPage();
+      for (const u of [url, 'https://paseolagaleria.com.py/locales-page-2.php']) {
+        await pg.goto(u, { waitUntil: 'networkidle', timeout: 45000 }).catch(() => {});
+        for (const t of await pg.$$eval('img[src*="img/locales"]', ims => ims.map(i => i.alt))) add(set, t);
+        for (const t of await pg.$$eval('h3', hs => hs.map(h => h.textContent))) if (set.size) add(set, t);
+      }
+      await b.close();
+    } catch (e) { console.error('galería sin navegador', e.message); }
     out.push({ name: 'Paseo La Galería', url, stores: [...set] });
   }
   // Mariscal: una página por categoría (/locales/<id>/<rubro>)
