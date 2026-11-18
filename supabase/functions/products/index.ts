@@ -68,7 +68,7 @@ function jsonObjectsAround(b: string, marker: string): unknown[] {
 async function contimarket(q: string): Promise<P[]> {
   const path = '/search?Box=False&q=' + encodeURIComponent(q);
   const b = await html('https://www.contimarket.com' + path).catch(() => rawGet('www.contimarket.com', path));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // deno-lint-ignore no-explicit-any
   return (jsonObjectsAround(b, '"ProductPrice"') as any[]).map(o => done('Contimarket', ent(o.Name || ''), Math.round(o.ProductPrice?.PriceValue || 0), Math.round(o.ProductPrice?.OldPriceValue || 0), o.DefaultPictureModel?.ImageUrl || '', o.Url || '')).filter(Boolean) as P[];
 }
 
@@ -97,7 +97,78 @@ async function tecnoga(q: string): Promise<P[]> {
   }).filter(Boolean) as P[];
 }
 
-const SHOPS: [string, (q: string) => Promise<P[]>][] = [['Contimarket', contimarket], ['Tienda Naranja', naranja], ['Tecnoga', tecnoga], ['Nissei', nissei]];
+// Cellshop: Adobe Live Search (los resultados se cargan por JS); precios en USD, se pasan a ₲ con la tasa de la tienda.
+const CELL_RATE = 6200;
+async function cellshop(q: string): Promise<P[]> {
+  const query = `query($q:String!){productSearch(phrase:$q,page_size:40){items{productView{name url images{url} ...on SimpleProductView{price{final{amount{value currency}} regular{amount{value currency}}}} ...on ComplexProductView{priceRange{minimum{final{amount{value currency}} regular{amount{value currency}}}}}}}}}`;
+  const r = await fetch('https://catalog-service.adobe.io/graphql', {
+    method: 'POST', signal: AbortSignal.timeout(8000),
+    headers: { 'content-type': 'application/json', 'x-api-key': 'search_gql', 'magento-environment-id': '21697142-5836-4c79-ae7e-765455f375aa', 'magento-website-code': 'base', 'magento-store-code': 'base', 'magento-store-view-code': 'default', 'magento-customer-group': 'b6589fc6ab0dc82cf12099d1c2d40ab994e8410c' },
+    body: JSON.stringify({ query, variables: { q } }),
+  });
+  if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 120));
+  const d = await r.json();
+  if (d.errors) throw new Error(d.errors[0]?.message?.slice(0, 60));
+  const gsOf = (a?: { value: number; currency: string }) => !a ? 0 : Math.round(a.currency === 'PYG' ? a.value : a.value * CELL_RATE);
+  // deno-lint-ignore no-explicit-any
+  return (d.data?.productSearch?.items || []).map((it: any) => {
+    const v = it.productView || {}, pr = v.price || v.priceRange?.minimum || {};
+    const img = v.images?.[0]?.url || '';
+    return done('Cellshop', ent(v.name || ''), gsOf(pr.final?.amount), gsOf(pr.regular?.amount), img.startsWith('//') ? 'https:' + img : img, v.url || '');
+  }).filter(Boolean) as P[];
+}
+
+// WooCommerce genérico: título del producto en un <a>, precio en woocommerce-Price-amount (<ins>/<del> si hay oferta)
+const wooAmounts = (s: string) => [...s.matchAll(/woocommerce-Price-amount[^>]*>[\s\S]*?<\/bdi>/g)].map(m => gs(ent(m[0])));
+async function wilmar(q: string): Promise<P[]> {
+  const b = await html('https://wilmarcenter.com.py/?s=' + encodeURIComponent(q) + '&post_type=product');
+  return b.split('<div class="etheme-product-grid-image">').slice(1).map(blk => {
+    const link = blk.match(/etheme-product-grid-title"><a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    const img = blk.match(/<img[^>]*\ssrc="(https?:[^"]+)"/);
+    const ins = blk.match(/<ins[^>]*>([\s\S]*?)<\/ins>/), del = blk.match(/<del[^>]*>([\s\S]*?)<\/del>/);
+    return link ? done('Wilmar', ent(link[2]), wooAmounts(ins ? ins[1] : blk)[0] || 0, del ? wooAmounts(del[1])[0] || 0 : 0, img?.[1] || '', link[1]) : null;
+  }).filter(Boolean) as P[];
+}
+
+async function mega(q: string): Promise<P[]> {
+  const b = await html('https://megaelectronicos.com.py/producto/buscar/?search=' + encodeURIComponent(q), 'curl/8.5.0');
+  return b.split(/<a href="(?=https:\/\/megaelectronicos\.com\.py\/producto\/\d)/).slice(1).map(blk => {
+    if (!/^[^"]+" class="p-card/.test(blk)) return null;
+    const url = blk.slice(0, blk.indexOf('"'));
+    const name = blk.match(/class="p-title[^"]*"[^>]*>([\s\S]*?)<\/h3>/);
+    const img = blk.match(/<img[^>]*\ssrc="(https?:[^"]+)"/);
+    const prices = [...blk.split('</a>')[0].matchAll(/Gs\.\s*([\d.]+)/g)].map(m => gs(m[1]));
+    const cur = Math.min(...prices), old = Math.max(...prices);
+    return name && prices.length ? done('Mega', ent(name[1]), cur, old, img?.[1] || '', url) : null;
+  }).filter(Boolean) as P[];
+}
+
+async function hogar(q: string): Promise<P[]> {
+  const O = 'https://www.hogarfeliz.com.py/';
+  const b = await html(O + 'productos?q=' + encodeURIComponent(q) + '&orderby=price');
+  return b.split('<div class="product">').slice(1).map(blk => {
+    const link = blk.match(/<a title="[^"]*" href="([^"]+)"/);
+    const name = blk.match(/woocommerce-loop-product__title">([\s\S]*?)<\/h2>/);
+    const img = blk.match(/data-src="([^"]+)"/);
+    const price = blk.match(/<span class="price">([\s\S]*?)<\/span>\s*<!--/)?.[1] || '';
+    const ins = gs(ent(price.match(/<ins>([\s\S]*?)<\/ins>/)?.[1] || ''));
+    const rest = [...price.replace(/<ins>[\s\S]*?<\/ins>/, '').matchAll(/class="amount">([^<]+)</g)].map(m => gs(m[1]));
+    const cur = ins || rest[0] || 0, old = ins ? rest[0] || 0 : 0;
+    return link && name ? done('Hogar Feliz', ent(name[1]), cur, old, img ? (img[1].startsWith('http') ? img[1] : O + img[1]) : '', link[1].startsWith('http') ? link[1] : O + link[1]) : null;
+  }).filter(Boolean) as P[];
+}
+
+async function porter(q: string): Promise<P[]> {
+  const b = await html('https://porter.com.py/index.php?route=product/search&search=' + encodeURIComponent(q), 'curl/8.5.0');
+  return b.split('<div class="product-thumb">').slice(1).map(blk => {
+    const link = blk.match(/<div class="name"><a href="([^"]+)">([\s\S]*?)<\/a>/);
+    const img = blk.match(/<img[^>]*\s(?:data-src|src)="(https?:[^"]+)"/);
+    const cur = blk.match(/class="price-(?:new|normal)">([^<]+)</), old = blk.match(/class="price-old">([^<]+)</);
+    return link && cur ? done('Porter', ent(link[2]), gs(cur[1]), old ? gs(old[1]) : 0, img?.[1] || '', link[1].replace(/[?&]search=[^&]*/, '')) : null;
+  }).filter(Boolean) as P[];
+}
+
+const SHOPS: [string, (q: string) => Promise<P[]>][] = [['Contimarket', contimarket], ['Tienda Naranja', naranja], ['Tecnoga', tecnoga], ['Nissei', nissei], ['Cellshop', cellshop], ['Wilmar', wilmar], ['Mega', mega], ['Hogar Feliz', hogar], ['Porter', porter]];
 
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
@@ -106,6 +177,11 @@ Deno.serve(async req => {
   const json = (d: unknown, extra: Record<string, string> = {}) => new Response(JSON.stringify(d), { headers: { ...CORS, 'content-type': 'application/json', ...extra } });
   if (!q) return json([]);
   const key = q.replace(/\s+/g, ' ');
+  // ?debug=1: sin caché, devuelve cuántos trajo cada tienda y los errores
+  if (url.searchParams.has('debug')) {
+    const res = await Promise.allSettled(SHOPS.map(([, f]) => f(key)));
+    return json(Object.fromEntries(res.map((r, i) => [SHOPS[i][0], r.status === 'fulfilled' ? { n: r.value.length, first: r.value[0] } : { error: String(r.reason?.message) }])));
+  }
   try {
     const r = await fetch(`${SB}?key=eq.${encodeURIComponent(key)}&select=data,at`, { headers: H });
     const row = (await r.json())?.[0];
