@@ -518,6 +518,8 @@ $('pq').onsubmit = async e => {
   if (!prod.items.length) return paged($('pres'), [], prodCard, empty('Sin resultados con precio. Probá en las tiendas de abajo.'));
   drawProd(); reveal('#pres .pcard');
 };
+// ?q=producto abre Tarjetas con la búsqueda de precios hecha (enlace compartible)
+{ const q = new URLSearchParams(location.search).get('q'); if (q) { if (location.hash !== '#tarjetas') location.hash = 'tarjetas'; $('pq').q.value = q; $('pq').requestSubmit(); } }
 
 const watch = await load('watch');
 const onSale = (watch.items || []).filter(w => w.off);
