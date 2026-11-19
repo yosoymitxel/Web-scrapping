@@ -5,6 +5,14 @@
 
 ## Buscar el precio de un producto
 
+Página HTML (text/html) con una tabla de precios, para lectores que solo aceptan HTML:
+
+GET https://precios.yosoymitxel.workers.dev/?q=QUÉ_BUSCAR
+
+Ejemplo: https://precios.yosoymitxel.workers.dev/?q=xiaomi%20buds%20pro
+
+La misma búsqueda en JSON:
+
 GET https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=QUÉ_BUSCAR
 
 Ejemplo: https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=xiaomi%20buds%20pro
