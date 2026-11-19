@@ -170,6 +170,10 @@ async function porter(q: string): Promise<P[]> {
 
 const SHOPS: [string, (q: string) => Promise<P[]>][] = [['Contimarket', contimarket], ['Tienda Naranja', naranja], ['Tecnoga', tecnoga], ['Nissei', nissei], ['Cellshop', cellshop], ['Wilmar', wilmar], ['Mega', mega], ['Hogar Feliz', hogar], ['Porter', porter]];
 
+const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+const fmt = (n: number) => '₲ ' + n.toLocaleString('es-PY');
+const table = (q: string, d: P[]) => `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Precios de ${esc(q)} en Paraguay</title></head><body><h1>Precios de «${esc(q)}» en tiendas de Paraguay</h1><p>${d.length} resultados, de menor a mayor precio, en guaraníes.</p>${d.length ? `<table><thead><tr><th>Producto</th><th>Tienda</th><th>Precio</th><th>Antes</th><th>Descuento</th><th>Enlace</th></tr></thead><tbody>${d.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.shop)}</td><td>${fmt(p.price)}</td><td>${p.old ? fmt(p.old) : ''}</td><td>${p.off ? p.off + '%' : ''}</td><td><a href="${esc(p.url)}">${esc(p.url)}</a></td></tr>`).join('')}</tbody></table>` : '<p>Ninguna tienda tiene este producto.</p>'}</body></html>`;
+
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   const url = new URL(req.url);
@@ -182,10 +186,12 @@ Deno.serve(async req => {
     const res = await Promise.allSettled(SHOPS.map(([, f]) => f(key)));
     return json(Object.fromEntries(res.map((r, i) => [SHOPS[i][0], r.status === 'fulfilled' ? { n: r.value.length, first: r.value[0] } : { error: String(r.reason?.message) }])));
   }
+  // &format=html: tabla HTML simple para lectores que no aceptan JSON
+  const out = url.searchParams.get('format') === 'html' ? (d: P[], extra: Record<string, string> = {}) => new Response(table(q, d), { headers: { ...CORS, 'content-type': 'text/html; charset=utf-8', ...extra } }) : json;
   try {
     const r = await fetch(`${SB}?key=eq.${encodeURIComponent(key)}&select=data,at`, { headers: H });
     const row = (await r.json())?.[0];
-    if (row && Date.now() - new Date(row.at).getTime() < TTL) return json(row.data, { 'x-cache': 'hit' });
+    if (row && Date.now() - new Date(row.at).getTime() < TTL) return out(row.data, { 'x-cache': 'hit' });
   } catch { /* sin caché */ }
   const res = await Promise.allSettled(SHOPS.map(([, f]) => f(key)));
   const errs: string[] = [];
@@ -196,5 +202,5 @@ Deno.serve(async req => {
   if (all.length) {
     await fetch(SB, { method: 'POST', headers: { ...H, prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key, data: all, at: new Date().toISOString() }) }).catch(() => {});
   }
-  return json(all, { 'x-cache': 'miss', 'x-counts': JSON.stringify(counts), 'x-errors': errs.join(' | ').slice(0, 300) });
+  return out(all, { 'x-cache': 'miss', 'x-counts': JSON.stringify(counts), 'x-errors': errs.join(' | ').slice(0, 300) });
 });
