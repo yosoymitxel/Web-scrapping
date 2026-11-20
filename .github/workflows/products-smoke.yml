@@ -1,0 +1,28 @@
+name: product-search-smoke
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/products/index.ts'
+      - '.github/workflows/products-smoke.yml'
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check live Tupi and Bristol results
+        run: |
+          node --input-type=module <<'NODE'
+          const url = 'https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=TV&debug=1';
+          const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
+          if (!response.ok) throw new Error('products endpoint returned HTTP ' + response.status);
+          const data = await response.json();
+          for (const shop of ['Tupi', 'Bristol']) {
+            const result = data[shop];
+            console.log(shop + ':', JSON.stringify(result));
+            if (!result || result.error || result.n < 1) throw new Error(shop + ' returned no products for TV');
+          }
+          NODE

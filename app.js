@@ -602,7 +602,7 @@ const prodCard = p => {
       (tracked ? 'En wishlist' : 'Seguir precio') + '</button></article>';
 };
 async function searchProducts(q, force = false) {
-  const k = q.toLowerCase(), all = store.get('panel.prod', {});
+  const k = q.toLowerCase(), all = store.get('panel.prod.v2', {});
   const c = all[k];
   if (!force && c && Date.now() - c.t < 6 * 36e5) return c.data;
   const url = 'https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=' + encodeURIComponent(q) + (force ? '&refresh=1' : '');
@@ -611,7 +611,7 @@ async function searchProducts(q, force = false) {
   const d = (await r.json()).filter(p => Number.isFinite(p.price) && p.price > 0);
   all[k] = {t:Date.now(), data:d};
   const keep = Object.entries(all).sort((x,y) => y[1].t - x[1].t).slice(0,12);
-  store.set('panel.prod', Object.fromEntries(keep));
+  store.set('panel.prod.v2', Object.fromEntries(keep));
   return d;
 }
 let prod = {items:[], shop:''};

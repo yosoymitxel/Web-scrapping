@@ -85,44 +85,85 @@ async function magento(shop: string, url: string, base = ''): Promise<P[]> {
 const naranja = (q: string) => magento('Tienda Naranja', 'https://tiendanaranja.com.py/catalogsearch/result/?q=' + encodeURIComponent(q));
 const nissei = (q: string) => magento('Nissei', 'https://nissei.com/py/catalogsearch/result/?q=' + encodeURIComponent(q));
 
-function structuredProducts(shop: string, page: string, base: string): P[] {
-  const out: P[] = [];
-  // deno-lint-ignore no-explicit-any
-  const visit = (value: any) => {
-    if (!value || typeof value !== 'object') return;
-    if (Array.isArray(value)) { value.forEach(visit); return; }
-    const types = [].concat(value['@type'] || []).map(String);
-    if (types.includes('Product')) {
-      const offer = Array.isArray(value.offers) ? value.offers[0] : value.offers || {};
-      const rawPrice = String(offer.price ?? offer.lowPrice ?? value.price ?? '');
-      const price = Math.round(Number(rawPrice)) || gs(rawPrice.split('.')[0]);
-      const image = Array.isArray(value.image) ? value.image[0] : value.image;
-      const href = offer.url || value.url || value['@id'] || '';
-      const url = href ? new URL(String(href), base).href : '';
-      const img = typeof image === 'string' ? new URL(image, base).href : image?.url ? new URL(image.url, base).href : '';
-      const p = done(shop, ent(String(value.name || '')), price, 0, img, url);
-      if (p) out.push(p);
-    }
-    Object.values(value).forEach(visit);
-  };
-  for (const match of page.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
-    try { visit(JSON.parse(match[1])); } catch { /* JSON-LD inválido: se ignora ese bloque */ }
-  }
-  return [...new Map(out.map(p => [p.url, p])).values()];
-}
 
-async function tupi(q: string): Promise<P[]> {
-  const url = 'https://www.tupi.com.py/buscar?productos=' + encodeURIComponent(q);
-  return structuredProducts('Tupi', await html(url), 'https://www.tupi.com.py');
+const pageLinks = (page: string, accept: (url: URL) => boolean, base: string): string[] => {
+  const urls = new Set<string>();
+  const host = new URL(base).hostname.replace(/^www\./, '');
+  for (const match of page.matchAll(/href\s*=\s*["']([^"']+)["']/gi)) {
+    try {
+      const url = new URL(match[1].replace(/&amp;/g, '&'), base);
+      if (url.protocol === 'https:' && url.hostname.replace(/^www\./, '') === host && accept(url)) urls.add(url.href);
+    } catch { /* enlace inválido */ }
+  }
+  return [...urls];
+};
+
+function bristolProduct(page: string, fallbackUrl: string): P | null {
+  const records = jsonObjectsAround(page, '"precioMonto"') as any[];
+  for (const record of records) {
+    const variant = record.variante || {};
+    const name = record.nombre || record.nombreCompleto || variant.nombreCompleto || variant.nombre || record.producto?.nombre || '';
+    const price = Number(record.precioMonto || 0);
+    const old = Number(record.precioAnteriorMonto || record.precioListaMonto || 0);
+    const rawImage = variant.img?.u || record.img || '';
+    const image = rawImage.startsWith('//') ? 'https:' + rawImage : rawImage ? new URL(rawImage, 'https://www.bristol.com.py').href : '';
+    const url = variant.url || fallbackUrl;
+    const product = done('Bristol', ent(String(name)), price, old, image, url);
+    if (product) return product;
+  }
+  return null;
 }
 
 async function bristol(q: string): Promise<P[]> {
-  const url = 'https://www.bristol.com.py/catalogo?q=' + encodeURIComponent(q);
-  const page = await html(url);
-  const structured = structuredProducts('Bristol', page, 'https://www.bristol.com.py');
-  return structured.length ? structured : magento('Bristol', url, 'https://www.bristol.com.py');
+  const origin = 'https://www.bristol.com.py';
+  const searchUrl = origin + '/catalogo?q=' + encodeURIComponent(q);
+  const page = await html(searchUrl);
+  const fromListing = (jsonObjectsAround(page, '"precioMonto"') as any[])
+    .map(record => bristolProduct(JSON.stringify(record), searchUrl))
+    .filter(Boolean) as P[];
+  if (fromListing.length) return [...new Map(fromListing.map(p => [p.url, p])).values()];
+
+  const urls = pageLinks(page, url => url.pathname.startsWith('/catalogo/') && url.pathname.split('/').pop()!.includes('_'), origin).slice(0, 12);
+  const details = await Promise.allSettled(urls.map(async url => bristolProduct(await html(url), url)));
+  const products: P[] = [];
+  for (const result of details) if (result.status === 'fulfilled' && result.value) products.push(result.value);
+  return [...new Map(products.map(p => [p.url, p])).values()];
 }
 
+
+function tupiProducts(fragment: string): P[] {
+  return fragment.split(/<div class="product_unit\b/).slice(1).map(block => {
+    const url = block.match(/href=["'](https?:\/\/www\.tupi\.com\.py\/producto\/[^"']+)["']/i)?.[1]?.trim() || '';
+    const title = block.match(/<a\b(?=[^>]*href=["'][^"']*\/producto\/)(?=[^>]*rel=["']tag["'])[^>]*>([\s\S]*?)<\/a>/i)?.[1] || '';
+    const imagePath = block.match(/data-echo=["']([^"']+)["']/i)?.[1] ||
+      block.match(/<img[^>]*class=["'][^"']*wp-post-image[^"']*["'][^>]*src=["']([^"']+)/i)?.[1] || '';
+    const image = imagePath ? new URL(imagePath, 'https://www.tupi.com.py').href : '';
+    const priceBlock = block.match(/<a\b[^>]*class=["'][^"']*add_to_cart_button_contado[^"']*["'][^>]*>([\s\S]*?)<\/a>/i)?.[1] || '';
+    const prices = [...ent(priceBlock).matchAll(/Gs\.?\s*([\d.]+)/gi)].map(match => gs(match[1]));
+    const price = prices.at(-1) || 0;
+    const old = prices.length > 1 ? prices[0] : 0;
+    return done('Tupi', ent(title).replace(/\s+ver detalles\s*$/i, ''), price, old, image, url);
+  }).filter(Boolean) as P[];
+}
+
+async function tupi(q: string): Promise<P[]> {
+  const origin = 'https://www.tupi.com.py';
+  const response = await fetch(origin + '/buscar_paginacion_p_group.php?query=' + encodeURIComponent(q), {
+    headers: {
+      'user-agent': BROWSER,
+      'accept-language': 'es-PY,es;q=0.9',
+      'accept': 'application/json, text/javascript, */*; q=0.01',
+      'x-requested-with': 'XMLHttpRequest',
+      'referer': origin + '/buscar?productos=' + encodeURIComponent(q),
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error('Tupi ' + response.status);
+  const data = await response.json();
+  const products = tupiProducts(typeof data.response === 'string' ? data.response : '');
+  if (!products.length) throw new Error('Tupi pagination returned no product cards');
+  return [...new Map(products.map(product => [product.url, product])).values()];
+}
 
 async function tecnoga(q: string): Promise<P[]> {
   const b = await html('https://tecnoga.com.py/?s=' + encodeURIComponent(q) + '&post_type=product', 'curl/8.5.0');
