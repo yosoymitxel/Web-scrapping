@@ -76,7 +76,7 @@ const num = v => { const n = typeof v === 'string' ? parseFloat(v.replace(/[^0-9
 let toastT;
 const toast = msg => { const t = $('toast'); t.innerHTML = icon('check') + esc(msg); t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); };
 
-const [as, fx, fr, hb, pt, cn, sh, storeDealData] = await Promise.all(['asphalt', 'fx', 'free', 'humble', 'playtest', 'cines', 'shoppings', 'store-deals'].map(load));
+const [as, fx, fr, hb, pt, cn, sh] = await Promise.all(['asphalt', 'fx', 'free', 'humble', 'playtest', 'cines', 'shoppings'].map(load));
 
 // Pestañas por hash
 const views = ['juegos', 'tarjetas', 'cine', 'asphalt'];
@@ -536,74 +536,6 @@ const getPromos = async () => {
   else promos = store.get('panel.promos', null)?.data;
   return promos ??= d;
 };
-
-// Descuentos directos en comercios: comparativa de precio anterior vs. actual.
-const dealNorm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-const dealItems = Array.isArray(storeDealData.items) ? storeDealData.items : [];
-let dealFilter = 'featured';
-let dealQuery = '';
-const dealExpired = storeDealData.validTo
-  ? new Date(storeDealData.validTo + 'T23:59:59').getTime() < Date.now()
-  : false;
-const dealStoreNames = [...new Set(dealItems.map(item => item.store).filter(Boolean))]
-  .sort((a, b) => (a === 'Nissei' ? -1 : b === 'Nissei' ? 1 : a === 'Cellshop' ? -1 : b === 'Cellshop' ? 1 : a.localeCompare(b)));
-const isFeaturedDeal = item => /nissei|cellshop/i.test(item.store || '');
-const storeDealCard = item => {
-  const href = item.url || item.storeUrl || item.sourceUrl;
-  const img = item.img ? '<span class="pph">' + im(item.img, item.name) + '</span>' : '<span class="pph"><span class="ph">' + esc(item.store) + '</span></span>';
-  return '<article class="pcard deal-card">' +
-    '<a class="pcard-link" href="' + esc(href) + '" target="_blank" rel="noopener">' +
-      img +
-      '<span class="pname">' + esc(item.name) + '</span>' +
-      priceBox({ usd: item.priceUsd, was: item.oldPriceUsd, off: item.off }) +
-    '</a>' +
-    '<div class="deal-footer"><span class="deal-store">' + esc(item.store) + '</span>' +
-      '<a class="deal-source" href="' + esc(item.sourceUrl || storeDealData.sourceUrl || '#') + '" target="_blank" rel="noopener">Fuente</a></div>' +
-    '<span class="deal-kind">' + esc(storeDealData.event || 'Oferta de comercio') + '</span>' +
-  '</article>';
-};
-const drawStoreDeals = () => {
-  const at = storeDealData.at ? since(storeDealData.at) : 'Sin actualización registrada';
-  const validity = storeDealData.validTo ? ' · Vigencia publicada hasta ' + day(storeDealData.validTo) : '';
-  $('storeDealMeta').textContent = [storeDealData.event || 'Ofertas de locales', at + validity].join(' · ');
-  $('storeDealNote').textContent = (storeDealData.disclaimer || 'Los precios deben confirmarse directamente en el comercio.') +
-    ' Se muestran descuentos sobre el precio; no incluyen cuotas sin interés ni reintegros de tarjetas.';
-  const filters = [
-    ['featured', 'Nissei + Cellshop', dealItems.filter(isFeaturedDeal).length],
-    ['all', 'Todos los locales', dealItems.length],
-    ...dealStoreNames.map(name => [name, name, dealItems.filter(item => item.store === name).length]),
-  ];
-  $('storeDealStores').innerHTML = filters.map(([key, label, count]) =>
-    '<button class="chip" type="button" data-deal-store="' + esc(key) + '" aria-pressed="' + (dealFilter === key) + '">' +
-    esc(label) + '<i>' + count + '</i></button>').join('');
-  let list = dealItems.filter(item => {
-    const storeOk = dealFilter === 'featured' ? isFeaturedDeal(item)
-      : dealFilter === 'all' ? true : item.store === dealFilter;
-    const q = dealNorm(dealQuery);
-    return storeOk && (!q || dealNorm(item.name + ' ' + item.store).includes(q));
-  });
-  const sort = $('storeDealSort').value;
-  list.sort((a, b) => sort === 'price' ? a.priceUsd - b.priceUsd
-    : sort === 'store' ? a.store.localeCompare(b.store) || a.name.localeCompare(b.name)
-    : b.off - a.off || a.priceUsd - b.priceUsd);
-  if (dealExpired) list = [];
-  const message = !dealItems.length
-    ? empty('Todavía no hay descuentos de locales recopilados.')
-    : dealExpired
-      ? empty('El evento terminó el ' + esc(day(storeDealData.validTo)) + '. Se ocultaron las ofertas vencidas.')
-      : empty('No hay descuentos para ese filtro.');
-  paged($('storeDeals'), list, storeDealCard, message, 12);
-};
-$('storeDealQ').oninput = event => { dealQuery = event.target.value; drawStoreDeals(); };
-$('storeDealSort').onchange = drawStoreDeals;
-$('storeDealStores').onclick = event => {
-  const button = event.target.closest('[data-deal-store]');
-  if (!button) return;
-  dealFilter = button.dataset.dealStore;
-  drawStoreDeals();
-};
-drawStoreDeals();
-
 // Shopping donde está el local (listas de locales de cada shopping)
 const malls = (sh.items || []).map(m => ({ name: m.name, set: new Set(m.stores.map(norm)) }));
 const mall = t => malls.filter(m => m.set.has(norm(t))).map(m => m.name).join(', ');
@@ -1008,9 +940,8 @@ $('cnAt').textContent = since(cn.at);
 
 // Avisos push: una suscripción por dispositivo; la función notify también vigila bajadas de precio cada 3 h.
 const VAPID = 'BG17L2huPA1iogOFzXIsFRfosZEWDv2yy7GwhwsXbKSF158zzrmVVsCRnEmFFaDC233cUqO8eP4bzAy7f_v2F7s';
-const NOTIFY = [['price', 'Bajadas de precio'], ['storeDeals', 'Descuentos Nissei/Cellshop'], ['sale', 'Deseados en oferta'], ['bundles', 'Deseados en bundles'], ['playtest', 'Deseados con demo/playtest'], ['free', 'Juegos gratis'], ['watch', 'Ofertas vigiladas'], ['asphalt', 'Códigos de Asphalt']];
-profile.notify ??= { price: true, storeDeals: true, sale: true, bundles: true, playtest: true, free: true, watch: true, asphalt: false };
-profile.notify.storeDeals ??= true;
+const NOTIFY = [['price', 'Bajadas de precio'], ['sale', 'Deseados en oferta'], ['bundles', 'Deseados en bundles'], ['playtest', 'Deseados con demo/playtest'], ['free', 'Juegos gratis'], ['watch', 'Ofertas vigiladas'], ['asphalt', 'Códigos de Asphalt']];
+profile.notify ??= { price: true, sale: true, bundles: true, playtest: true, free: true, watch: true, asphalt: false };
 profile.notify.price ??= true;
 const b64 = s => Uint8Array.from(atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 const canPush = 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined';

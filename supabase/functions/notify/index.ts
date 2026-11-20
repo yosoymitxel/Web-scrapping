@@ -78,8 +78,8 @@ Deno.serve(async req => {
   if (!keys?.public || !keys?.private) return json({ error: 'vapid_keys_missing' }, 500);
   webpush.setVapidDetails('mailto:panel@example.com', keys.public, keys.private);
 
-  const [free, asphalt, watch, humble, playtest, storeDeals] = await Promise.all(
-    ['free', 'asphalt', 'watch', 'humble', 'playtest', 'store-deals'].map(n => readJson(DATA + n + '.json')),
+  const [free, asphalt, watch, humble, playtest] = await Promise.all(
+    ['free', 'asphalt', 'watch', 'humble', 'playtest'].map(n => readJson(DATA + n + '.json')),
   );
   const [profiles, subscriptions, wishlistRows] = await Promise.all([
     rows('panel_profiles?select=user_id,data'),
@@ -187,7 +187,7 @@ Deno.serve(async req => {
   let users = 0;
   for (const [userId, data] of profileByUser) {
     const want = {
-      sale: true, bundles: true, playtest: true, free: true, watch: true, asphalt: false, price: true, storeDeals: true,
+      sale: true, bundles: true, playtest: true, free: true, watch: true, asphalt: false, price: true,
       ...(data?.notify || {}),
     };
     const userSubs = subscriptionsByUser.get(userId) || [];
@@ -211,17 +211,13 @@ Deno.serve(async req => {
       bundles: (humble.items || []).filter((b: any) => (b.games || []).some((x: any) => wishedNames.has(norm(typeof x === 'string' ? x : x.n))))
         .map((b: any) => ({ k: 'b' + b.url, t: String(b.name).replace(/\s*\|.*$/, '') })),
       playtest: (playtest.items || []).filter((x: any) => wishedIds.has(x.id)).map((x: any) => ({ k: 't' + x.id, t: x.name })),
-      storeDeals: (storeDeals.alerts || []).map((x: any) => ({
-        k: 'd' + x.id,
-        t: `${x.store}: ${x.name} · US$ ${Number(x.priceUsd).toFixed(2)} · -${x.off}%`,
-      })),
     };
     const titles: Record<string, string> = {
-      free: 'Juegos gratis', asphalt: 'Códigos de Asphalt', watch: 'Ofertas vigiladas', storeDeals: 'Descuentos en locales',
+      free: 'Juegos gratis', asphalt: 'Códigos de Asphalt', watch: 'Ofertas vigiladas',
       sale: 'Deseados en oferta', bundles: 'Deseados en un bundle', playtest: 'Deseados con demo o playtest',
     };
     const tabs: Record<string, string> = {
-      free: 'juegos', asphalt: 'asphalt', watch: 'asphalt', sale: 'juegos', bundles: 'juegos', playtest: 'juegos', storeDeals: 'tarjetas',
+      free: 'juegos', asphalt: 'asphalt', watch: 'asphalt', sale: 'juegos', bundles: 'juegos', playtest: 'juegos',
     };
     const firstRun = !Array.isArray(data.notified);
     const done = new Set<string>(data.notified || []);

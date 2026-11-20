@@ -464,28 +464,3 @@ a.chip { gap: 6px; }
   .wish-card-title { grid-column:2; }
   .wish-remove { grid-column:2; justify-self:start; }
 }
-
-
-/* Descuentos directos de comercios */
-.store-deal-section { margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--line); }
-.store-deal-section .row-head { margin-top: 0; }
-.store-deal-section .row-head > div { display: grid; gap: 7px; }
-.store-deal-section .row-head h2 { font-size: clamp(22px, 4vw, 30px); }
-.store-deal-section .row-head .mut { font-size: 12px; }
-.deal-note { margin: 0 0 14px; max-width: 90ch; font-size: 12px; }
-.store-deal-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
-.store-deal-tools .search { flex: 1 1 240px; min-height: 44px; }
-.store-deal-tools .search input { padding: 10px 0; }
-#storeDealStores { margin-bottom: 14px; }
-.deal-card { min-width: 0; }
-.deal-card .pph { position: relative; }
-.deal-card .pname { min-height: 2.6em; }
-.deal-card .deal-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; margin-top: auto; border-top: 1px solid var(--line); }
-.deal-card .deal-store { font-size: 12px; font-weight: 700; color: var(--tx); }
-.deal-card .deal-source { font-size: 12px; color: var(--mut); text-decoration: underline; text-underline-offset: 3px; }
-.deal-card .deal-kind { font-size: 10px; color: var(--mut); }
-@media (max-width: 720px) {
-  .store-deal-tools { align-items: stretch; }
-  .store-deal-tools .search { flex-basis: 100%; }
-  .store-deal-tools .sel { justify-content: space-between; width: 100%; }
-}
