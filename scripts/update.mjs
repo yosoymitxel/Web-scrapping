@@ -1,5 +1,6 @@
 // Corre en GitHub Actions (Node 20, sin dependencias). Escribe data/*.json.
 import { writeFile, readFile } from 'node:fs/promises';
+import { buildStoreDealAlerts, normalizeStoreName } from './store-deals.mjs';
 
 const UA = { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'accept-language': 'es,en;q=0.8' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -165,6 +166,113 @@ await step('watch', async () => {
   }
   console.log('watch', JSON.stringify(items));
   return { items };
+});
+
+// Descuentos directos en tiendas: usa el buscador propio que consulta Nissei y Cellshop.
+await step('store-deals', async () => {
+  const endpoint = 'https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products';
+  const sourceUrls = {
+    Nissei: 'https://nissei.com/br/recomendado/ocasiones/black-friday',
+    Cellshop: 'https://cellshop.com.py/promociones-novedades-y-descuentos',
+  };
+  // Búsquedas transversales para cubrir las principales categorías tecnológicas.
+  const queries = [
+    'notebook', 'smartphone', 'televisor', 'gaming', 'auriculares',
+    'ssd', 'monitor', 'tablet', 'camara', 'procesador',
+  ];
+  const byId = new Map();
+  const seen = { Nissei: 0, Cellshop: 0 };
+  const successes = [];
+  const failures = [];
+  const allowedHosts = {
+    Nissei: /(^|\.)nissei\.com$/i,
+    Cellshop: /(^|\.)cellshop\.com\.py$/i,
+  };
+  const safeStoreUrl = (value, store) => {
+    try {
+      const u = new URL(String(value || ''));
+      return u.protocol === 'https:' && allowedHosts[store].test(u.hostname) ? u.href : '';
+    } catch { return ''; }
+  };
+  for (const query of queries) {
+    try {
+      const data = await get(endpoint + '?q=' + encodeURIComponent(query) + '&refresh=1');
+      if (!Array.isArray(data)) throw new Error('respuesta no es una lista');
+      let found = 0;
+      for (const raw of data) {
+        const store = normalizeStoreName(raw.shop);
+        if (!(store in seen)) continue;
+        seen[store]++;
+        const priceRaw = Number(raw.price);
+        const oldRaw = Number(raw.old);
+        if (!(priceRaw > 0 && oldRaw > priceRaw)) continue;
+        const url = safeStoreUrl(raw.url, store);
+        if (!url) continue;
+        // El buscador convierte Cellshop de USD a PYG con la tasa interna 6.200.
+        // Nissei entrega su precio del catálogo directamente en USD.
+        const divisor = store === 'Cellshop' ? 6200 : 1;
+        const priceUsd = Math.round((priceRaw / divisor) * 100) / 100;
+        const oldPriceUsd = Math.round((oldRaw / divisor) * 100) / 100;
+        const off = Number(raw.off) > 0 ? Number(raw.off) : Math.round((1 - priceUsd / oldPriceUsd) * 100);
+        const id = (store + ':' + url.split('?')[0]).toLowerCase();
+        const item = {
+          id,
+          name: String(raw.name || '').trim(),
+          store,
+          priceUsd,
+          oldPriceUsd,
+          off,
+          url,
+          storeUrl: sourceUrls[store],
+          img: safeStoreUrl(raw.img, store) || '',
+          sourceUrl: sourceUrls[store],
+        };
+        if (!item.name || !item.off) continue;
+        const prior = byId.get(id);
+        if (!prior || item.priceUsd < prior.priceUsd) byId.set(id, item);
+        found++;
+      }
+      successes.push({ query, found, results: data.length });
+      console.log('store-deals query', query, 'results', data.length, 'sales', found);
+    } catch (error) {
+      failures.push({ query, error: String(error?.message || error) });
+      console.error('store-deals query failed', query, error?.message || error);
+    }
+    await sleep(250);
+  }
+
+  console.log('store-deals catalog seen', JSON.stringify(seen), 'unique deals', byId.size, 'failed queries', failures.length);
+  // No reemplazar el último histórico si alguna de las dos tiendas no responde.
+  if (!seen.Nissei || !seen.Cellshop) {
+    throw new Error('el buscador no devolvió productos de ambas tiendas: ' + JSON.stringify(seen));
+  }
+  if (!successes.length) throw new Error('ninguna consulta completó correctamente');
+  const items = [...byId.values()].sort((a, b) => b.off - a.off || a.priceUsd - b.priceUsd);
+  const previous = await readFile('data/store-deals.json', 'utf8').then(JSON.parse).catch(() => null);
+  const checkedAt = new Date().toISOString();
+  const alerts = buildStoreDealAlerts(items, previous, checkedAt);
+  console.log(
+    'store deals verified',
+    'items', items.length,
+    'Nissei', items.filter(x => x.store === 'Nissei').length,
+    'Cellshop', items.filter(x => x.store === 'Cellshop').length,
+    'alerts', alerts.length,
+    'successes', successes.length,
+  );
+  return {
+    complete: true,
+    event: 'Descuentos publicados por Nissei y Cellshop',
+    source: 'Catálogos oficiales mediante el buscador de precios',
+    sourceUrl: sourceUrls.Nissei,
+    sourceUrls,
+    disclaimer: 'Solo se consideran rebajas cuando la tienda devuelve un precio anterior y uno actual menor. Las cuotas sin intereses y los reintegros bancarios se muestran aparte y no cuentan como descuento directo. Precio y stock sujetos a confirmación en la tienda.',
+    alertScope: ['Nissei', 'Cellshop'],
+    alerts,
+    items,
+    checkedQueries: successes,
+    failedQueries: failures,
+    catalogSeen: seen,
+  };
 });
 
 // Playtests y demos (playtestgames.net): datos dentro del payload de Next.js

@@ -1,0 +1,65 @@
+{
+  "at": "2026-11-20T15:00:00.000Z",
+  "complete": false,
+  "event": "Black Friday Ciudad del Este 2026",
+  "validFrom": "2026-11-19",
+  "validTo": "2026-11-22",
+  "source": "Comparaguay",
+  "sourceUrl": "https://comparaguay.com.py/evento/black-friday/",
+  "disclaimer": "Los precios mostrados son válidos solo para no paraguayos. Los residentes en Paraguay deben pagar el precio mostrado más el IVA correspondiente.",
+  "alertScope": [
+    "Nissei",
+    "Cellshop"
+  ],
+  "alerts": [],
+  "items": [
+    {
+      "id": "cellshop-robo-aspirador-midea",
+      "name": "Robô aspirador Midea",
+      "store": "Cellshop",
+      "priceUsd": 19.9,
+      "oldPriceUsd": 90,
+      "off": 78,
+      "url": "https://comparaguay.com.py/lojas/cellshop/",
+      "storeUrl": "https://comparaguay.com.py/lojas/cellshop/",
+      "img": "",
+      "sourceUrl": "https://comparaguay.com.py/evento/black-friday/"
+    },
+    {
+      "id": "cellshop-tenis-joog-jg8003m-masculino",
+      "name": "Tênis Joog JG8003M masculino",
+      "store": "Cellshop",
+      "priceUsd": 19.9,
+      "oldPriceUsd": 49.9,
+      "off": 60,
+      "url": "https://comparaguay.com.py/lojas/cellshop/",
+      "storeUrl": "https://comparaguay.com.py/lojas/cellshop/",
+      "img": "",
+      "sourceUrl": "https://comparaguay.com.py/evento/black-friday/"
+    },
+    {
+      "id": "nissei-jogo-ps5-mafia-the-old-country",
+      "name": "Jogo PS5 Mafia: The Old Country",
+      "store": "Nissei",
+      "priceUsd": 15.9,
+      "oldPriceUsd": 38.75,
+      "off": 58,
+      "url": "https://comparaguay.com.py/lojas/nissei/",
+      "storeUrl": "https://comparaguay.com.py/lojas/nissei/",
+      "img": "",
+      "sourceUrl": "https://comparaguay.com.py/evento/black-friday/"
+    },
+    {
+      "id": "nissei-simulador-moza-racing",
+      "name": "Simulador Moza Racing",
+      "store": "Nissei",
+      "priceUsd": 299,
+      "oldPriceUsd": 699,
+      "off": 56,
+      "url": "https://comparaguay.com.py/lojas/nissei/",
+      "storeUrl": "https://comparaguay.com.py/lojas/nissei/",
+      "img": "",
+      "sourceUrl": "https://comparaguay.com.py/evento/black-friday/"
+    }
+  ]
+}

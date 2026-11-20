@@ -132,6 +132,20 @@
   </div>
   <div class="promos" id="promos"></div>
 
+  <section class="store-deal-section" aria-labelledby="storeDealTitle">
+   <div class="row-head">
+    <div><h2 id="storeDealTitle">Descuentos directos de locales</h2><p class="mut" id="storeDealMeta">Cargando ofertas…</p></div>
+    <a class="link" href="https://comparaguay.com.py/evento/black-friday/" target="_blank" rel="noopener">Fuente Black Friday <svg class="ic"><use href="#i-link"/></svg></a>
+   </div>
+   <p class="mut deal-note" id="storeDealNote">Se muestran rebajas de precio publicadas por el comercio; no se cuentan cuotas ni reintegros bancarios.</p>
+   <div class="store-deal-tools">
+    <label class="search"><svg class="ic"><use href="#i-search"/></svg><input id="storeDealQ" type="search" placeholder="Buscar producto o local" autocomplete="off" aria-label="Buscar descuentos de locales"></label>
+    <label class="sel">Orden <select id="storeDealSort"><option value="off">Mayor descuento</option><option value="price">Menor precio</option><option value="store">Local</option></select></label>
+   </div>
+   <div class="chips" id="storeDealStores" aria-label="Filtrar descuentos por local"></div>
+   <div class="pgrid" id="storeDeals"></div>
+  </section>
+
   <div class="hero card-hero prod-hero">
    <h1>¿Cuánto cuesta?</h1>
    <form id="pq" class="search big" role="search"><svg class="ic"><use href="#i-search"/></svg><input name="q" placeholder="Ej: tv 55" autocomplete="off" aria-label="Producto"></form>
