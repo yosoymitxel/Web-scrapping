@@ -4,6 +4,10 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/products/index.ts'
+      - 'supabase/functions/notify/**'
+      - 'app.js'
+      - 'scripts/product-matching.test.mjs'
+      - 'scripts/product-matching.live-smoke.mjs'
       - '.github/workflows/products-smoke.yml'
 jobs:
   smoke:
@@ -13,6 +17,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Test same-model matching across product types
+        run: node --test scripts/product-matching.test.mjs
+      - name: Check live same-model matches across stores
+        run: node scripts/product-matching.live-smoke.mjs
       - name: Check live Tupi and Bristol results
         run: |
           node --input-type=module <<'NODE'

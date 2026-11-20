@@ -141,7 +141,7 @@
   <div class="pgrid" id="pres" hidden></div>
   <section class="wish-section" id="wishSection" hidden aria-labelledby="wishTitle">
    <div class="row-head wish-heading"><h2 id="wishTitle">Mi wishlist <span id="wishCount" class="wish-count">0</span></h2><button class="btn sm" id="wishRefresh" type="button">Actualizar precios</button></div>
-   <p class="mut wish-intro" id="wishStatus">Los precios se actualizan cuando tocás el botón. No hay monitoreo automático en segundo plano.</p>
+   <p class="mut wish-intro" id="wishStatus">Guardá productos para seguir sus precios y recibir avisos cuando bajen.</p>
    <div class="wish-list" id="productWishlist"></div>
   </section>
   <div class="shops" id="plinks"></div>
@@ -152,7 +152,7 @@
  <div class="sheet-in">
   <div class="row-head first"><h2 id="profT">Perfil</h2><button class="link" id="profClose">Cerrar</button></div>
   <form id="login" class="stack"><h3 class="sec">Cuenta</h3>
-   <p class="mut" id="loginMsg">Entrá o creá una cuenta para guardar todo en la nube. Sin cuenta, queda en este navegador.</p>
+   <p class="mut" id="loginMsg" aria-live="polite" aria-atomic="true">Entrá o creá una cuenta para guardar todo en la nube. Sin cuenta, queda en este navegador.</p>
    <label class="field"><span>Correo</span><input name="email" type="email" autocomplete="email" required></label>
    <label class="field"><span>Contraseña</span><input name="pass" type="password" autocomplete="current-password" minlength="6"></label>
    <div class="tools wrap"><button class="btn sm" value="in">Entrar</button><button class="btn sm ghost" value="up" formnovalidate>Crear cuenta</button><button class="link" type="button" id="forgot">Olvidé mi contraseña</button></div>
@@ -176,6 +176,6 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1795112100"></script>
+<script type="module" src="app.js?v=product-matching-20261120-4"></script>
 </body>
 </html>
