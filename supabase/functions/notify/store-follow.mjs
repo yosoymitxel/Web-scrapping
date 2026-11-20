@@ -5,7 +5,13 @@ const normalize = value => String(value || '')
   .replace(/[^a-z0-9]+/g, ' ')
   .trim();
 
-const STOP_WORDS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y', 'the', 'shopping', 'shopping center', 'local', 'locales', 'tienda', 'tiendas', 'store', 'stores', 'sucursal', 'sucursales']);
+// Términos que no identifican por sí solos a un comercio.
+const GENERIC_STORE_WORDS = new Set([
+  'de', 'del', 'la', 'las', 'el', 'los', 'y', 'the',
+  'shop', 'shops', 'shopping', 'center', 'centers',
+  'store', 'stores', 'local', 'locales', 'tienda', 'tiendas',
+  'sucursal', 'sucursales',
+]);
 
 export const isDirectDiscount = promotion => {
   const percent = Number(promotion?.discount_percent);
@@ -16,11 +22,23 @@ export const matchesFollowedStore = (promotion, storeName) => {
   const title = normalize(promotion?.title);
   const store = normalize(storeName);
   if (!title || !store) return false;
-  if ((' ' + title + ' ').includes(' ' + store + ' ')) return true;
-  if (title.replace(/\s/g, '').includes(store.replace(/\s/g, ''))) return true;
-  const titleWords = new Set(title.split(' '));
-  const storeWords = store.split(' ').filter(word => word.length >= 4 && !STOP_WORDS.has(word));
-  return storeWords.some(word => titleWords.has(word));
+
+  const storeWords = store.split(' ').filter(Boolean);
+  if (!storeWords.some(word => word.length > 1 && !GENERIC_STORE_WORDS.has(word))) return false;
+
+  // Exige el nombre completo. Permite "Cell Shop" = "Cellshop", pero no
+  // acepta una coincidencia por "Cell" o "Shop" de manera aislada.
+  const expected = storeWords.join('');
+  const titleWords = title.split(' ');
+  for (let start = 0; start < titleWords.length; start++) {
+    let candidate = '';
+    for (let end = start; end < titleWords.length; end++) {
+      candidate += titleWords[end];
+      if (candidate === expected) return true;
+      if (candidate.length >= expected.length) break;
+    }
+  }
+  return false;
 };
 
 export const storePromotionFingerprint = promotion => {
