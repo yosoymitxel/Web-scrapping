@@ -20,6 +20,8 @@ Ejemplo: https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=xiaomi
 Devuelve una lista ordenada de menor a mayor precio. Cada elemento: `shop` (tienda), `name`, `price` (₲), `old` (precio anterior, si hay oferta), `off` (% de descuento), `url` (página del producto), `img`.
 Tiendas consultadas: Contimarket, Tienda Naranja, Tecnoga, Nissei, Cellshop, Wilmar Center, Hogar Feliz. Los resultados se guardan en caché 6 h. Una lista vacía significa que ninguna de esas tiendas tiene el producto.
 
+Para forzar una consulta nueva que omita esa caché y vuelva a consultar las tiendas, añadí `&refresh=1` a la URL. La wishlist del panel guarda el precio inicial y el historial de revisiones; la actualización es manual y también muestra el mismo modelo más barato en otra tienda y otros productos más económicos de la misma búsqueda.
+
 Para buscar a mano en otras tiendas: Mega Electrónicos https://megaelectronicos.com.py/producto/buscar/?search=QUÉ, Porter https://porter.com.py/index.php?route=product/search&search=QUÉ, Visuar https://visuar.com.py/searchiqit?s=QUÉ, Compulandia https://www.compulandia.com.py/py/store?q=QUÉ.
 
 ## Promociones con tarjetas por comercio

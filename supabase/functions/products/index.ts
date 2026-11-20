@@ -188,11 +188,14 @@ Deno.serve(async req => {
   }
   // &format=html: tabla HTML simple para lectores que no aceptan JSON
   const out = url.searchParams.get('format') === 'html' ? (d: P[], extra: Record<string, string> = {}) => new Response(table(q, d), { headers: { ...CORS, 'content-type': 'text/html; charset=utf-8', ...extra } }) : json;
-  try {
-    const r = await fetch(`${SB}?key=eq.${encodeURIComponent(key)}&select=data,at`, { headers: H });
-    const row = (await r.json())?.[0];
-    if (row && Date.now() - new Date(row.at).getTime() < TTL) return out(row.data, { 'x-cache': 'hit' });
-  } catch { /* sin caché */ }
+  const forceRefresh = url.searchParams.get('refresh') === '1';
+  if (!forceRefresh) {
+    try {
+      const r = await fetch(`${SB}?key=eq.${encodeURIComponent(key)}&select=data,at`, { headers: H });
+      const row = (await r.json())?.[0];
+      if (row && Date.now() - new Date(row.at).getTime() < TTL) return out(row.data, { 'x-cache': 'hit' });
+    } catch { /* sin caché */ }
+  }
   const res = await Promise.allSettled(SHOPS.map(([, f]) => f(key)));
   const errs: string[] = [];
   const all: P[] = [];

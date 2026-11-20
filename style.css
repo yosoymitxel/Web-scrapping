@@ -388,3 +388,79 @@ a.chip { gap: 6px; }
 #pType, #pMall { margin-top: 4px; }
 .whit { display: flex; gap: 6px; align-items: flex-start; margin: 6px 0 0; color: var(--ac); font-weight: 600; font-size: 14px; }
 .whit .ic { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+
+
+/* Wishlist de productos: historial manual, tiendas alternativas y estados claros */
+.pcard-link { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; color:inherit; }
+.pcard.is-wished { border-color:var(--ac); }
+.wish-add { width:100%; min-height:36px; justify-content:center; padding:5px 10px; font-size:12px; }
+.wish-add[aria-pressed="true"] { color:var(--ac); border-color:var(--ac); cursor:default; }
+.wish-section { margin:28px 0 8px; padding-top:22px; border-top:1px solid var(--line); }
+.wish-heading { align-items:center; }
+.wish-heading h2 { display:flex; align-items:center; gap:9px; }
+.wish-count { display:inline-grid; place-items:center; min-width:24px; height:24px; padding:0 7px; border-radius:99px; background:var(--s2); color:var(--mut); font:600 12px var(--body); }
+.wish-intro { margin:9px 0 14px; font-size:13px; }
+.wish-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr)); gap:12px; }
+.wish-card { min-width:0; display:grid; gap:10px; padding:14px; border:1px solid var(--line); border-radius:16px; background:var(--s1); }
+.wish-card-head { display:grid; grid-template-columns:64px minmax(0,1fr) auto; align-items:center; gap:10px; min-width:0; }
+.wish-thumb { width:64px; height:64px; border-radius:10px; object-fit:contain; background:var(--s2); }
+.wish-card-title { display:grid; min-width:0; gap:2px; }
+.wish-card-title b { font-size:14px; line-height:1.25; overflow-wrap:anywhere; }
+.wish-card-title small { color:var(--mut); font-size:11px; overflow-wrap:anywhere; }
+.wish-remove { min-height:36px; padding:5px 10px; font-size:12px; }
+.wish-current { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; padding-top:9px; border-top:1px solid var(--line); }
+.wish-current span,.wish-current small { color:var(--mut); font-size:12px; }
+.wish-current strong { font:800 20px var(--display); }
+.wish-signals { display:flex; flex-wrap:wrap; gap:6px; }
+.wish-signal { display:inline-flex; align-items:center; min-height:26px; padding:3px 9px; border-radius:999px; background:var(--s2); color:var(--mut); font-size:11px; }
+.wish-signal.good { background:var(--ac-dim); color:var(--ac); }
+.wish-signal.warn { color:var(--warn); }
+.wish-status { margin:0; font-size:11px; }
+.wish-group { display:grid; gap:6px; padding-top:8px; border-top:1px solid var(--line); }
+.wish-group > b { font-size:12px; }
+.wish-group > p { margin:0; font-size:11px; }
+.wish-option { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:10px; background:var(--s2); }
+.wish-option > span { display:grid; min-width:0; gap:2px; }
+.wish-option b { font-size:12px; line-height:1.25; overflow-wrap:anywhere; }
+.wish-option small { color:var(--mut); font-size:11px; }
+.wish-option strong { flex:none; font:700 14px var(--display); white-space:nowrap; }
+.wish-option:hover { outline:1px solid var(--mut); }
+@media (max-width:440px) {
+  .wish-card { padding:11px; }
+  .wish-card-head { grid-template-columns:52px minmax(0,1fr); }
+  .wish-thumb { width:52px; height:52px; }
+  .wish-remove { grid-column:2; justify-self:start; }
+  .wish-heading { align-items:flex-start; flex-wrap:wrap; }
+}
+
+
+/* Fix: el placeholder no debe heredar .ph (position:absolute), porque colapsa la primera columna del grid */
+.wish-thumb { display:grid; place-items:center; flex:none; overflow:hidden; }
+.wish-thumb.wish-placeholder {
+  position:static;
+  inset:auto;
+  width:64px;
+  height:64px;
+  aspect-ratio:1;
+  border-radius:10px;
+  background:var(--s2);
+  color:var(--mut);
+  font:800 18px var(--display);
+}
+.wish-card-title { width:100%; min-width:0; overflow:hidden; }
+.wish-card-title b {
+  display:block;
+  min-width:0;
+  width:100%;
+  white-space:normal;
+  overflow-wrap:break-word;
+  word-break:normal;
+  hyphens:manual;
+}
+.wish-card-title small { overflow-wrap:anywhere; }
+@media (max-width:440px) {
+  .wish-card-head { grid-template-columns:52px minmax(0,1fr); }
+  .wish-thumb.wish-placeholder { width:52px; height:52px; }
+  .wish-card-title { grid-column:2; }
+  .wish-remove { grid-column:2; justify-self:start; }
+}

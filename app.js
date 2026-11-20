@@ -40,8 +40,17 @@ const im = (src, name, extra = '') => src ? `<img loading="lazy" src="${esc(src)
 addEventListener('error', e => {
   const i = e.target; if (i?.tagName !== 'IMG') return;
   if (i.dataset.fl) { const f = document.createElement('b'); f.textContent = i.dataset.fl; i.replaceWith(f); return; }
+  // La miniatura de wishlist tiene un contenedor propio: nunca convertirla en un .ph absoluto global.
+  if (i.classList.contains('wish-thumb') || i.closest('.wish-card')) {
+    const ph = document.createElement('span');
+    ph.className = 'wish-thumb wish-placeholder';
+    ph.setAttribute('aria-hidden', 'true');
+    ph.textContent = i.dataset.ph || 'Producto';
+    i.replaceWith(ph);
+    return;
+  }
   const ph = document.createElement('span'); ph.className = 'ph';
-  ph.textContent = i.dataset.ph || (() => { try { return new URL(i.src).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  ph.textContent = i.dataset.ph || (() => { try { return new URL(i.src).hostname.replace(/^www\\./, ''); } catch { return ''; } })();
   i.replaceWith(ph);
 }, true);
 // Fin de oferta: cuenta regresiva que se refresca sola
@@ -118,6 +127,7 @@ let recovery = false;
   }
 }
 await pull();
+profile.productWishlist = Array.isArray(profile.productWishlist) ? profile.productWishlist : [];
 const SITE = 'https://yosoymitxel.github.io/Web-scrapping/';
 const setSess = d => { sess = { token: d.access_token, refresh: d.refresh_token, until: Date.now() + (d.expires_in - 60) * 1e3, email: d.user.email }; store.set('panel.sess', sess); };
 const loginMsg = t => $('loginMsg').textContent = t;
@@ -473,32 +483,233 @@ route();
 // Productos: abre el buscador de cada tienda (sin scraping)
 const GENERAL = [['Rebuscate','https://rebuscate.com/?q=']];
 const SHOPS = [['Nissei','https://nissei.com/py/catalogsearch/result/?q='],['Tienda Naranja','https://tiendanaranja.com.py/catalogsearch/result/?q='],['Contimarket','https://www.contimarket.com/search?Box=False&q='],['Compulandia','https://www.compulandia.com.py/py/store?q='],['Visuar','https://visuar.com.py/searchiqit?s='],['Tecnoga','https://tecnoga.com.py/?post_type=product&s='],['Innovagame','https://www.innovagame.com.py/busqueda?controller=search&s='],['Cellshop','https://cellshop.com.py/catalogsearch/result/?q='],['Wilmar','https://wilmarcenter.com.py/?post_type=product&s='],['Mega','https://megaelectronicos.com.py/producto/buscar/?search='],['Hogar Feliz','https://www.hogarfeliz.com.py/productos?q='],['Porter','https://porter.com.py/index.php?route=product/search&search='],['Compras Paraguai','https://www.comprasparaguai.com.br/busca/?q=']];
-const prodCard = p => {
-  const off = p.off || (p.old > p.price ? Math.round((1 - p.price / p.old) * 100) : 0);
-  return `<a class="pcard surf" href="${esc(p.url)}" target="_blank" rel="noopener"><span class="pph">${im(p.img, p.name, 'referrerpolicy="no-referrer"')}</span><span class="pname">${esc(p.name)}</span>${priceBox({ pyg: p.price, was: p.old > p.price ? p.old : null, off })}<span class="mut pshop">${esc(p.shop)}${icon('link')}</span></a>`;
+const normalizeProductName = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const PRODUCT_STOP = new Set(['de','del','la','el','los','las','con','para','y','the','new','nuevo','original','auricular','auriculares','audifono','audifonos','headphone','headphones','headset','wireless','inalambrico','inalambricos','bluetooth','gaming','gamer','microfono','microfonos','color','negro','blanco','red','blue']);
+const productTokens = value => normalizeProductName(value).split(' ').filter(t => t.length > 1 && !PRODUCT_STOP.has(t));
+const safeProductUrl = value => {
+  try { const u = new URL(String(value || ''), location.href); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch { return ''; }
 };
-async function searchProducts(q) {
+const sameProductModel = (a, b) => {
+  if (safeProductUrl(a?.url) && safeProductUrl(a.url) === safeProductUrl(b?.url)) return true;
+  const aa = productTokens(a?.name), bb = productTokens(b?.name);
+  if (aa.length < 2 || bb.length < 2) return false;
+  const common = aa.filter(t => bb.includes(t));
+  const modelA = aa.filter(t => /\d/.test(t)), modelB = bb.filter(t => /\d/.test(t));
+  if (modelA.length && !modelA.some(t => bb.includes(t))) return false;
+  if (modelB.length && !modelB.some(t => aa.includes(t))) return false;
+  const jaccard = common.length / new Set([...aa, ...bb]).size;
+  const smallerOverlap = common.length / Math.min(aa.length, bb.length);
+  return common.length >= 2 && (jaccard >= .65 || smallerOverlap >= .8);
+};
+const wishKey = p => safeProductUrl(p?.url) || (String(p?.shop || '') + '|' + normalizeProductName(p?.name));
+const isProductWished = p => (profile.productWishlist || []).some(w => wishKey(w) === wishKey(p));
+const wishSnapshot = p => ({
+  name: String(p.name || ''),
+  shop: String(p.shop || ''),
+  price: Number(p.price) || 0,
+  old: Number(p.old) || 0,
+  off: offOf(p),
+  url: safeProductUrl(p.url),
+  img: String(p.img || ''),
+});
+const wishPrice = n => pygS(Number(n) || 0);
+const wishOption = (p, label) => {
+  const href = safeProductUrl(p.url);
+  return '<a class="wish-option" href="' + esc(href || '#') + '" target="_blank" rel="noopener">' +
+    '<span><b>' + esc(p.name) + '</b><small>' + esc(p.shop) + (label ? ' · ' + esc(label) : '') + '</small></span>' +
+    '<strong>' + wishPrice(p.price) + '</strong></a>';
+};
+const wishCard = w => {
+  const latest = w.latest || {};
+  const current = latest.matched || null;
+  const discount = current && offOf(current) > 0
+    ? '<span class="wish-signal good">Oferta vigente: -' + offOf(current) + '% en ' + esc(current.shop) + '</span>' : '';
+  const change = latest.change;
+  const trend = change?.direction === 'down'
+    ? '<span class="wish-signal good">Bajó ' + wishPrice(change.amount) + ' (' + change.percent + '%) en ' + esc(change.shop) + '</span>'
+    : change?.direction === 'up'
+      ? '<span class="wish-signal warn">Subió ' + wishPrice(change.amount) + ' (' + change.percent + '%) en ' + esc(change.shop) + '</span>'
+      : '';
+  const same = (latest.sameProduct || []).length
+    ? '<div class="wish-group"><b>Mismo modelo más barato</b>' + latest.sameProduct.map(p => wishOption(p, 'alternativa en otra tienda')).join('') + '</div>' : '';
+  const alternatives = (latest.alternatives || []).length
+    ? '<div class="wish-group"><b>Otras opciones más económicas</b><p class="mut">Son otros productos encontrados con la misma búsqueda; revisá sus características antes de compararlos.</p>' +
+      latest.alternatives.map(p => wishOption(p, 'otra opción')).join('') + '</div>' : '';
+  let status = 'Todavía no actualizaste los precios desde que lo guardaste.';
+  if (latest.error) status = 'No se pudo actualizar: ' + latest.error;
+  else if (latest.missing) status = 'No apareció en esta consulta. Puede haberse agotado o cambiado el nombre.';
+  else if (latest.checkedAt) status = 'Revisado ' + new Date(latest.checkedAt).toLocaleString('es-PY', {dateStyle:'short', timeStyle:'short'});
+  const currentBlock = current
+    ? '<div class="wish-current"><span>Precio encontrado' + (current.shop ? ' · ' + esc(current.shop) : '') + '</span><strong>' + wishPrice(current.price) + '</strong>' +
+      (current.old > current.price ? '<small>Antes ' + wishPrice(current.old) + '</small>' : '') + '</div>'
+    : '<div class="wish-current"><span>Precio de referencia</span><strong>' + wishPrice(w.price) + '</strong></div>';
+  return '<article class="wish-card">' +
+    '<div class="wish-card-head">' +
+      (w.img ? '<img class="wish-thumb" src="' + esc(w.img) + '" alt="" data-ph="' + esc(w.name) + '" loading="lazy" referrerpolicy="no-referrer">' : '<span class="wish-thumb wish-placeholder" aria-hidden="true">P</span>') +
+      '<div class="wish-card-title"><b>' + esc(w.name) + '</b><small>Búsqueda: ' + esc(w.query) + '</small><small>Agregado desde ' + esc(w.shop) + '</small></div>' +
+      '<button class="chip wish-remove" type="button" data-wish-remove="' + esc(w.id) + '">Quitar</button>' +
+    '</div>' + currentBlock +
+    '<div class="wish-signals">' + discount + trend +
+      (latest.checkedAt && !discount && !trend && !latest.error && !latest.missing ? '<span class="wish-signal">Sin cambio de precio detectado</span>' : '') +
+      (latest.missing ? '<span class="wish-signal warn">Producto no localizado</span>' : '') +
+    '</div>' +
+    (latest.error || latest.missing ? '<p class="mut wish-status">' + esc(status) + '</p>' : latest.checkedAt ? '<p class="mut wish-status">' + esc(status) + '</p>' : '<p class="mut wish-status">' + esc(status) + '</p>') +
+    same + alternatives + '</article>';
+};
+const drawWishlist = status => {
+  const items = profile.productWishlist || [];
+  $('wishSection').hidden = !items.length;
+  $('wishCount').textContent = String(items.length);
+  $('productWishlist').innerHTML = items.map(wishCard).join('');
+  if (status !== undefined) $('wishStatus').textContent = status;
+  else if (!items.length) $('wishStatus').textContent = 'Guardá productos desde los resultados para seguir sus precios.';
+};
+const addProductToWishlist = async p => {
+  if (!p || isProductWished(p)) return;
+  const query = $('pq').q.value.trim();
+  profile.productWishlist.unshift({
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2),
+    query,
+    name: String(p.name || ''),
+    shop: String(p.shop || ''),
+    url: safeProductUrl(p.url),
+    img: String(p.img || ''),
+    price: Number(p.price) || 0,
+    old: Number(p.old) || 0,
+    off: offOf(p),
+    addedAt: new Date().toISOString(),
+    history: [{price:Number(p.price) || 0, shop:String(p.shop || ''), url:safeProductUrl(p.url), at:new Date().toISOString()}],
+    latest: null,
+  });
+  await saveProfile();
+  drawWishlist('Producto guardado. Actualizá los precios cuando quieras revisar descuentos y alternativas.');
+  drawProd();
+  toast('Agregado a tu wishlist');
+};
+const prodCard = p => {
+  const off = offOf(p);
+  const tracked = isProductWished(p);
+  const href = safeProductUrl(p.url);
+  return '<article class="pcard' + (tracked ? ' is-wished' : '') + '">' +
+    '<a class="pcard-link surf" href="' + esc(href || '#') + '" target="_blank" rel="noopener">' +
+      '<span class="pph">' + im(p.img, p.name, 'referrerpolicy="no-referrer"') + '</span>' +
+      '<span class="pname">' + esc(p.name) + '</span>' +
+      priceBox({pyg:p.price, was:p.old > p.price ? p.old : null, off}) +
+      '<span class="mut pshop">' + esc(p.shop) + icon('link') + '</span>' +
+    '</a>' +
+    '<button class="chip wish-add" type="button" data-wish-add="' + esc(String(prod.items.indexOf(p))) + '"' +
+      (tracked ? ' aria-pressed="true" disabled' : ' aria-pressed="false"') + '>' +
+      (tracked ? 'En wishlist' : 'Seguir precio') + '</button></article>';
+};
+async function searchProducts(q, force = false) {
   const k = q.toLowerCase(), all = store.get('panel.prod', {});
-  const c = all[k]; if (c && Date.now() - c.t < 6 * 36e5) return c.data;
-  const r = await fetch(`https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=${encodeURIComponent(q)}`);
+  const c = all[k];
+  if (!force && c && Date.now() - c.t < 6 * 36e5) return c.data;
+  const url = 'https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=' + encodeURIComponent(q) + (force ? '&refresh=1' : '');
+  const r = await fetch(url);
   if (!r.ok) throw new Error(r.status);
   const d = (await r.json()).filter(p => Number.isFinite(p.price) && p.price > 0);
-  all[k] = { t: Date.now(), data: d };
-  const keep = Object.entries(all).sort((x, y) => y[1].t - x[1].t).slice(0, 12);
+  all[k] = {t:Date.now(), data:d};
+  const keep = Object.entries(all).sort((x,y) => y[1].t - x[1].t).slice(0,12);
   store.set('panel.prod', Object.fromEntries(keep));
   return d;
 }
-let prod = { items: [], shop: '' };
+let prod = {items:[], shop:''};
 const offOf = p => p.off || (p.old > p.price ? Math.round((1 - p.price / p.old) * 100) : 0);
-const sorts = { pa: (a, b) => a.price - b.price, pd: (a, b) => b.price - a.price, off: (a, b) => offOf(b) - offOf(a), n: (a, b) => a.name.localeCompare(b.name) };
+const sorts = {pa:(a,b) => a.price - b.price, pd:(a,b) => b.price - a.price, off:(a,b) => offOf(b) - offOf(a), n:(a,b) => a.name.localeCompare(b.name)};
 const drawProd = () => {
-  const { items } = prod;
+  const {items} = prod;
   const shops = [...new Set(items.map(p => p.shop))].sort();
-  $('pChips').innerHTML = items.length ? ['', ...shops].map(n => `<button class="chip" data-s="${esc(n)}" aria-pressed="${n === prod.shop}">${esc(n || 'Todas')}<i>${n ? items.filter(p => p.shop === n).length : items.length}</i></button>`).join('') : '';
+  $('pChips').innerHTML = items.length ? ['', ...shops].map(n => '<button class="chip" data-s="' + esc(n) + '" aria-pressed="' + (n === prod.shop) + '">' + esc(n || 'Todas') + '<i>' + (n ? items.filter(p => p.shop === n).length : items.length) + '</i></button>').join('') : '';
   $('pTools').hidden = !items.length;
   const onlyOff = $('pOff').getAttribute('aria-pressed') === 'true';
   paged($('pres'), items.filter(p => (!prod.shop || p.shop === prod.shop) && (!onlyOff || offOf(p))).sort(sorts[$('pSort').value]), prodCard, empty('Sin resultados.'));
 };
+const findWishlistProduct = (items, w) => {
+  const url = safeProductUrl(w.url);
+  const name = normalizeProductName(w.name);
+  return items.find(p => url && safeProductUrl(p.url) === url) ||
+    items.find(p => p.shop === w.shop && normalizeProductName(p.name) === name) ||
+    items.find(p => normalizeProductName(p.name) === name) ||
+    items.find(p => sameProductModel(w, p)) || null;
+};
+const refreshProductWishlist = async () => {
+  const items = profile.productWishlist || [];
+  if (!items.length) return;
+  const button = $('wishRefresh');
+  button.disabled = true;
+  drawWishlist('Consultando de nuevo las tiendas guardadas en tu wishlist…');
+  try {
+    const queries = [...new Set(items.map(w => String(w.query || w.name).trim()).filter(Boolean))];
+    const results = new Map();
+    await Promise.all(queries.map(async q => {
+      try { results.set(q.toLowerCase(), {items:await searchProducts(q, true), error:''}); }
+      catch (e) { results.set(q.toLowerCase(), {items:[], error:String(e?.message || e)}); }
+    }));
+    const checkedAt = new Date().toISOString();
+    for (const w of items) {
+      const result = results.get(String(w.query || w.name).trim().toLowerCase());
+      if (!result || result.error) {
+        w.latest = {...(w.latest || {}), checkedAt, error:result?.error || 'No se pudo consultar esta búsqueda.'};
+        continue;
+      }
+      const found = findWishlistProduct(result.items, w);
+      const previous = [...(w.history || [])].reverse().find(h => found && h.shop === found.shop && h.shop === (h.shop || ''));
+      let change = null;
+      if (found && previous && Number(previous.price) !== Number(found.price)) {
+        const amount = Math.abs(Number(previous.price) - Number(found.price));
+        change = {
+          direction: found.price < previous.price ? 'down' : 'up',
+          amount,
+          percent: Math.round(amount / Math.max(1, Number(previous.price)) * 100),
+          shop:found.shop,
+        };
+      }
+      const basePrice = found?.price || Number(w.price) || 0;
+      const sameProduct = found ? result.items
+        .filter(p => p.price < basePrice && p.shop !== found.shop && sameProductModel(found, p))
+        .sort((a,b) => a.price - b.price).slice(0,3).map(wishSnapshot) : [];
+      const alternatives = result.items
+        .filter(p => p.price < basePrice && !sameProductModel(w, p))
+        .sort((a,b) => a.price - b.price).slice(0,3).map(wishSnapshot);
+      const history = Array.isArray(w.history) ? w.history : [];
+      if (found) history.push({price:Number(found.price), shop:String(found.shop), url:safeProductUrl(found.url), at:checkedAt});
+      w.history = history.slice(-12);
+      w.latest = {
+        checkedAt,
+        matched:found ? wishSnapshot(found) : null,
+        sameProduct,
+        alternatives,
+        missing:!found,
+        error:'',
+        change,
+      };
+    }
+    await saveProfile();
+    drawWishlist('Actualización terminada. Los resultados reflejan las consultas que las tiendas permitieron completar.');
+  } catch (e) {
+    drawWishlist('No se pudo completar la actualización: ' + String(e?.message || e));
+  } finally {
+    button.disabled = false;
+    drawProd();
+  }
+};
+$('pres').addEventListener('click', async e => {
+  const button = e.target.closest('[data-wish-add]');
+  if (!button) return;
+  const p = prod.items[Number(button.dataset.wishAdd)];
+  await addProductToWishlist(p);
+});
+$('productWishlist').addEventListener('click', async e => {
+  const button = e.target.closest('[data-wish-remove]');
+  if (!button) return;
+  profile.productWishlist = profile.productWishlist.filter(w => w.id !== button.dataset.wishRemove);
+  await saveProfile();
+  drawWishlist('Producto eliminado de tu wishlist.');
+  drawProd();
+});
+$('wishRefresh').onclick = refreshProductWishlist;
+drawWishlist();
 $('pSort').onchange = () => drawProd();
 $('pOff').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); drawProd(); };
 $('pChips').onclick = e => { const n = e.target.closest('[data-s]')?.dataset.s; if (n == null) return; prod.shop = n; drawProd(); reveal('#pres .pcard'); };

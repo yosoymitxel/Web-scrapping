@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1794407954">
+<link rel="stylesheet" href="style.css?v=1795111500">
 </head>
 <body>
 <noscript><p>Este panel necesita JavaScript. Si sos una IA o un script: los datos están en JSON, sin JavaScript. Guía completa: <a href="llms.html">llms.html</a> (o <a href="llms.txt">llms.txt</a>).</p>
@@ -139,6 +139,11 @@
    <div class="tools" id="pTools" hidden><label class="sel">Orden <select id="pSort"><option value="pa">Precio ↑</option><option value="pd">Precio ↓</option><option value="off">Mayor descuento</option><option value="n">Nombre</option></select></label><button class="chip" id="pOff" aria-pressed="false">Con descuento</button></div>
   </div>
   <div class="pgrid" id="pres" hidden></div>
+  <section class="wish-section" id="wishSection" hidden aria-labelledby="wishTitle">
+   <div class="row-head wish-heading"><h2 id="wishTitle">Mi wishlist <span id="wishCount" class="wish-count">0</span></h2><button class="btn sm" id="wishRefresh" type="button">Actualizar precios</button></div>
+   <p class="mut wish-intro" id="wishStatus">Los precios se actualizan cuando tocás el botón. No hay monitoreo automático en segundo plano.</p>
+   <div class="wish-list" id="productWishlist"></div>
+  </section>
   <div class="shops" id="plinks"></div>
  </section>
 </main>
@@ -171,6 +176,6 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1794407954"></script>
+<script type="module" src="app.js?v=1795111500"></script>
 </body>
 </html>
