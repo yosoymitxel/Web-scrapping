@@ -85,6 +85,45 @@ async function magento(shop: string, url: string, base = ''): Promise<P[]> {
 const naranja = (q: string) => magento('Tienda Naranja', 'https://tiendanaranja.com.py/catalogsearch/result/?q=' + encodeURIComponent(q));
 const nissei = (q: string) => magento('Nissei', 'https://nissei.com/py/catalogsearch/result/?q=' + encodeURIComponent(q));
 
+function structuredProducts(shop: string, page: string, base: string): P[] {
+  const out: P[] = [];
+  // deno-lint-ignore no-explicit-any
+  const visit = (value: any) => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    const types = [].concat(value['@type'] || []).map(String);
+    if (types.includes('Product')) {
+      const offer = Array.isArray(value.offers) ? value.offers[0] : value.offers || {};
+      const rawPrice = String(offer.price ?? offer.lowPrice ?? value.price ?? '');
+      const price = Math.round(Number(rawPrice)) || gs(rawPrice.split('.')[0]);
+      const image = Array.isArray(value.image) ? value.image[0] : value.image;
+      const href = offer.url || value.url || value['@id'] || '';
+      const url = href ? new URL(String(href), base).href : '';
+      const img = typeof image === 'string' ? new URL(image, base).href : image?.url ? new URL(image.url, base).href : '';
+      const p = done(shop, ent(String(value.name || '')), price, 0, img, url);
+      if (p) out.push(p);
+    }
+    Object.values(value).forEach(visit);
+  };
+  for (const match of page.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { visit(JSON.parse(match[1])); } catch { /* JSON-LD inválido: se ignora ese bloque */ }
+  }
+  return [...new Map(out.map(p => [p.url, p])).values()];
+}
+
+async function tupi(q: string): Promise<P[]> {
+  const url = 'https://www.tupi.com.py/buscar?productos=' + encodeURIComponent(q);
+  return structuredProducts('Tupi', await html(url), 'https://www.tupi.com.py');
+}
+
+async function bristol(q: string): Promise<P[]> {
+  const url = 'https://www.bristol.com.py/catalogo?q=' + encodeURIComponent(q);
+  const page = await html(url);
+  const structured = structuredProducts('Bristol', page, 'https://www.bristol.com.py');
+  return structured.length ? structured : magento('Bristol', url, 'https://www.bristol.com.py');
+}
+
+
 async function tecnoga(q: string): Promise<P[]> {
   const b = await html('https://tecnoga.com.py/?s=' + encodeURIComponent(q) + '&post_type=product', 'curl/8.5.0');
   return b.split('<div class="wd-product wd-col').slice(1).map(blk => {
@@ -168,7 +207,7 @@ async function porter(q: string): Promise<P[]> {
   }).filter(Boolean) as P[];
 }
 
-const SHOPS: [string, (q: string) => Promise<P[]>][] = [['Contimarket', contimarket], ['Tienda Naranja', naranja], ['Tecnoga', tecnoga], ['Nissei', nissei], ['Cellshop', cellshop], ['Wilmar', wilmar], ['Mega', mega], ['Hogar Feliz', hogar], ['Porter', porter]];
+const SHOPS: [string, (q: string) => Promise<P[]>][] = [['Contimarket', contimarket], ['Tienda Naranja', naranja], ['Tecnoga', tecnoga], ['Nissei', nissei], ['Cellshop', cellshop], ['Wilmar', wilmar], ['Mega', mega], ['Hogar Feliz', hogar], ['Porter', porter], ['Tupi', tupi], ['Bristol', bristol]];
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const fmt = (n: number) => '₲ ' + n.toLocaleString('es-PY');
