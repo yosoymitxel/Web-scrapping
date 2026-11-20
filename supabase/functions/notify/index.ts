@@ -1,10 +1,12 @@
 // Comprueba wishlist de productos y envía push por dispositivo. Se ejecuta cada 3 h desde Actions.
 import webpush from 'npm:web-push@3.6.7';
 import { findWishlistMatch, safeProductUrl } from './product-matching.mjs';
+import { updateFollowedStore } from './store-follow.mjs';
 
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const DATA = 'https://yosoymitxel.github.io/Web-scrapping/data/';
+const PROMOS = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/promos.json';
 const PANEL = 'https://yosoymitxel.github.io/Web-scrapping/';
 const PRODUCTS = URL_ + '/functions/v1/products';
 const db = (path: string, init: RequestInit = {}) => fetch(`${URL_}/rest/v1/${path}`, {
@@ -78,9 +80,10 @@ Deno.serve(async req => {
   if (!keys?.public || !keys?.private) return json({ error: 'vapid_keys_missing' }, 500);
   webpush.setVapidDetails('mailto:panel@example.com', keys.public, keys.private);
 
-  const [free, asphalt, watch, humble, playtest] = await Promise.all(
-    ['free', 'asphalt', 'watch', 'humble', 'playtest'].map(n => readJson(DATA + n + '.json')),
-  );
+  const [free, asphalt, watch, humble, playtest, promos] = await Promise.all([
+    ...['free', 'asphalt', 'watch', 'humble', 'playtest'].map(n => readJson(DATA + n + '.json')),
+    readJson(PROMOS),
+  ]);
   const [profiles, subscriptions, wishlistRows] = await Promise.all([
     rows('panel_profiles?select=user_id,data'),
     rows('panel_push_subscriptions?select=user_id,endpoint,subscription'),
@@ -187,12 +190,26 @@ Deno.serve(async req => {
   let users = 0;
   for (const [userId, data] of profileByUser) {
     const want = {
-      sale: true, bundles: true, playtest: true, free: true, watch: true, asphalt: false, price: true,
+      sale: true, bundles: true, playtest: true, free: true, watch: true, stores: true, asphalt: false, price: true,
       ...(data?.notify || {}),
     };
     const userSubs = subscriptionsByUser.get(userId) || [];
-    if (!userSubs.length) continue;
-    users++;
+    if (userSubs.length) users++;
+
+    // Actualiza la wishlist de comercios aunque la cuenta no tenga push activo.
+    const storeAlerts: { name: string; promos: any[] }[] = [];
+    if (Array.isArray(promos)) {
+      const followed = Array.isArray(data.followedStores) ? data.followedStores : [];
+      for (let i = 0; i < followed.length; i++) {
+        const result = updateFollowedStore(followed[i], promos, checkedAt);
+        followed[i] = result.follow;
+        if (result.newPromotions.length) {
+          storeAlerts.push({ name: String(result.follow.name || 'Local seguido'), promos: result.newPromotions });
+        }
+      }
+      data.followedStores = followed;
+    }
+
 
     let steamGames: any[] = [];
     if (data.steam && (want.sale || want.bundles || want.playtest)) {
@@ -230,6 +247,24 @@ Deno.serve(async req => {
       for (const sub of userSubs) if (await pushPayload(sub.subscription, payload, sub.endpoint)) sent++;
     }
     data.notified = [...done].slice(-800);
+
+    if (want.stores && storeAlerts.length) {
+      const total = storeAlerts.reduce((count, item) => count + item.promos.length, 0);
+      const body = storeAlerts.slice(0, 3).map(item => {
+        const promotion = item.promos[0];
+        const cards = Array.isArray(promotion.cards) && promotion.cards.length ? ' · ' + promotion.cards.slice(0, 3).join(', ') : '';
+        return item.name + ': -' + promotion.discountPercent + '% con ' + (promotion.bankShort || 'tarjeta') + cards;
+      }).join(' | ') + (storeAlerts.length > 3 ? ' y otros locales' : '');
+      const payload = {
+        title: 'Descuento en local seguido (' + total + ')',
+        body,
+        url: PANEL + '#tarjetas',
+        tag: 'store-follow-discounts',
+      };
+      for (const sub of userSubs) if (await pushPayload(sub.subscription, payload, sub.endpoint)) sent++;
+    }
+
+
 
     const alerts = priceAlerts.get(userId) || [];
     if (want.price && alerts.length) {

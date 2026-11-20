@@ -7,6 +7,7 @@ on:
       - 'supabase/functions/notify/**'
       - 'app.js'
       - 'scripts/product-matching.test.mjs'
+      - 'scripts/store-follow.test.mjs'
       - 'scripts/product-matching.live-smoke.mjs'
       - '.github/workflows/products-smoke.yml'
 jobs:
@@ -17,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Test followed-store tracking and promotion alerts
+        run: node --test scripts/store-follow.test.mjs
       - name: Test same-model matching across product types
         run: node --test scripts/product-matching.test.mjs
       - name: Check live same-model matches across stores

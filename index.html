@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1795111500">
+<link rel="stylesheet" href="style.css?v=store-follow-20261120-1">
 </head>
 <body>
 <noscript><p>Este panel necesita JavaScript. Si sos una IA o un script: los datos están en JSON, sin JavaScript. Guía completa: <a href="llms.html">llms.html</a> (o <a href="llms.txt">llms.txt</a>).</p>
@@ -124,6 +124,10 @@
     <svg class="ic"><use href="#i-search"/></svg>
     <input name="q" placeholder="Comercio" autocomplete="off" aria-label="Comercio">
    </form>
+   <div class="store-follow-controls">
+    <label class="sel"><span>Seguir por</span><select id="storeFollowDuration"><option value="7">7 días</option><option value="30" selected>30 días</option><option value="90">90 días</option><option value="0">Sin vencimiento</option></select></label>
+    <button class="btn sm" id="storeFollowAdd" type="button" disabled>＋ Seguir este local</button>
+   </div>
    <div class="srcs"><a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá <svg class="ic"><use href="#i-link"/></svg></a><a class="link" href="https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/" target="_blank" rel="noopener">Ver en PromoPY <svg class="ic"><use href="#i-link"/></svg></a></div>
    <div class="chips" id="recent"></div>
    <div class="chips" id="pType" aria-label="Tipo de beneficio"></div>
@@ -131,6 +135,12 @@
    <div class="chips" id="pMall" aria-label="Filtrar por shopping"></div>
   </div>
   <div class="promos" id="promos"></div>
+
+  <section class="store-follow-section" id="storeFollowSection" hidden aria-labelledby="storeFollowTitle">
+   <div class="row-head"><h2 id="storeFollowTitle">Locales que sigo <span class="wish-count" id="storeFollowCount">0</span></h2></div>
+   <p class="mut store-follow-intro">Seguí un comercio aunque hoy no tenga descuentos. Te avisamos cuando aparezca uno directo con tarjetas.</p>
+   <div class="store-follow-list" id="storeFollowList"></div>
+  </section>
 
   <div class="hero card-hero prod-hero">
    <h1>¿Cuánto cuesta?</h1>
@@ -176,6 +186,6 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=product-matching-20261120-4"></script>
+<script type="module" src="app.js?v=store-follow-20261120-1"></script>
 </body>
 </html>

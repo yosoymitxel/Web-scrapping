@@ -550,6 +550,71 @@ const promoCard = p => `<article class="promo">
     <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id, p.title)}
     <span class="src">${A(p.href || 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/', (p.href ? 'Bases ' : 'PromoPY · ') + esc(p.bankShort))}${A('https://www.google.com/maps/search/' + encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay')), icon('pin') + 'Mapa', 'map')}</span></article>`;
 let lastQ = '', hits = [], bankF = '', typeF = 'desc', mallF = '';
+
+profile.followedStores = Array.isArray(profile.followedStores) ? profile.followedStores : [];
+const normalizeStore = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const followedStoreFor = name => profile.followedStores.find(item => normalizeStore(item.name) === normalizeStore(name));
+const drawStoreFollowButton = () => {
+  const name = lastQ.trim();
+  const followed = name && followedStoreFor(name);
+  $('storeFollowAdd').disabled = !name || !!followed;
+  $('storeFollowAdd').textContent = followed ? 'Siguiendo este local' : '＋ Seguir este local';
+  $('storeFollowAdd').setAttribute('aria-pressed', String(!!followed));
+};
+const drawFollowedStores = () => {
+  const list = profile.followedStores;
+  $('storeFollowSection').hidden = !list.length;
+  $('storeFollowCount').textContent = String(list.length);
+  $('storeFollowList').innerHTML = list.map(item => {
+    const expired = !!item.expiresAt && Date.parse(item.expiresAt) <= Date.now();
+    const deals = expired ? [] : (Array.isArray(item.latestDeals) ? item.latestDeals : []);
+    const until = item.expiresAt
+      ? 'hasta ' + new Date(item.expiresAt).toLocaleDateString('es-PY', { day:'numeric', month:'short', year:'numeric' })
+      : 'sin vencimiento';
+    const status = expired
+      ? 'Seguimiento vencido'
+      : deals.length
+        ? deals.length + (deals.length === 1 ? ' descuento directo vigente' : ' descuentos directos vigentes')
+        : item.lastCheckedAt
+          ? 'Sin descuentos directos detectados · revisado ' + new Date(item.lastCheckedAt).toLocaleString('es-PY', { dateStyle:'short', timeStyle:'short' })
+          : 'Esperando la primera revisión automática';
+    const dealRows = deals.map(deal => {
+      const detail = [deal.bankShort, ...(Array.isArray(deal.cards) ? deal.cards : []), deal.when || (Array.isArray(deal.days) ? deal.days.join(', ') : '')].filter(Boolean).join(' · ');
+      return '<div class="store-follow-deal"><div><b>' + esc(deal.title || item.name) + '</b><small>' + esc(detail || 'Descuento directo con tarjeta') + '</small></div><strong>-' + esc(deal.discountPercent) + '%</strong>' + (deal.href ? A(deal.href, 'Bases') : '') + '</div>';
+    }).join('');
+    return '<article class="store-follow-card"><div class="store-follow-top"><div><b>' + esc(item.name) + '</b><small>' + esc(status) + ' · ' + esc(until) + '</small></div><button class="chip" type="button" data-store-unfollow="' + esc(item.id) + '">Quitar</button></div>' + (dealRows ? '<div class="store-follow-deals">' + dealRows + '</div>' : '') + '</article>';
+  }).join('');
+  drawStoreFollowButton();
+};
+$('storeFollowAdd').onclick = async () => {
+  const name = lastQ.trim();
+  if (!name || followedStoreFor(name)) return;
+  if (profile.followedStores.length >= 50) return toast('Llegaste al límite de 50 locales seguidos.');
+  const days = Number($('storeFollowDuration').value);
+  const now = new Date();
+  profile.followedStores.unshift({
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2),
+    name,
+    addedAt: now.toISOString(),
+    expiresAt: days ? new Date(now.getTime() + days * 864e5).toISOString() : null,
+    latestDeals: [],
+    lastCheckedAt: null,
+    notified: [],
+  });
+  const synced = await saveProfile();
+  drawFollowedStores();
+  toast(synced ? 'Seguimiento guardado en tu cuenta.' : sess ? 'Guardado localmente; no se pudo sincronizar.' : 'Guardado en este navegador. Iniciá sesión para sincronizar y recibir avisos push.');
+};
+$('storeFollowList').onclick = async event => {
+  const id = event.target.closest('[data-store-unfollow]')?.dataset.storeUnfollow;
+  if (!id) return;
+  profile.followedStores = profile.followedStores.filter(item => item.id !== id);
+  await saveProfile();
+  drawFollowedStores();
+  toast('Seguimiento eliminado.');
+};
+drawFollowedStores();
+
 const kind = p => p.discount_percent ? 'desc' : p.installments ? 'cuotas' : 'otro';
 // Chips de banco: filtro con contador sobre los resultados de la búsqueda
 const drawPromos = () => {
@@ -567,6 +632,7 @@ const drawPromos = () => {
 };
 const search = async q => {
   q = q.trim(); if (!q) return; lastQ = q;
+  drawStoreFollowButton();
   const ql = q.toLowerCase();
   document.querySelector('#tq input').value = q;
   $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
@@ -581,6 +647,7 @@ const search = async q => {
     .sort((a, b) => mine.has(b.bankShort) - mine.has(a.bankShort) || (b.discount_percent || 0) - (a.discount_percent || 0));
   hits = hit; bankF = ''; mallF = '';
   drawPromos();
+  drawFollowedStores();
   reveal('#promos .promo');
   recent.splice(0, recent.length, q, ...recent.filter(r => r.toLowerCase() !== ql).slice(0, 7));
   store.set('recent', recent); drawRecent();
@@ -940,8 +1007,9 @@ $('cnAt').textContent = since(cn.at);
 
 // Avisos push: una suscripción por dispositivo; la función notify también vigila bajadas de precio cada 3 h.
 const VAPID = 'BG17L2huPA1iogOFzXIsFRfosZEWDv2yy7GwhwsXbKSF158zzrmVVsCRnEmFFaDC233cUqO8eP4bzAy7f_v2F7s';
-const NOTIFY = [['price', 'Bajadas de precio'], ['sale', 'Deseados en oferta'], ['bundles', 'Deseados en bundles'], ['playtest', 'Deseados con demo/playtest'], ['free', 'Juegos gratis'], ['watch', 'Ofertas vigiladas'], ['asphalt', 'Códigos de Asphalt']];
-profile.notify ??= { price: true, sale: true, bundles: true, playtest: true, free: true, watch: true, asphalt: false };
+const NOTIFY = [['price', 'Bajadas de precio'], ['sale', 'Deseados en oferta'], ['bundles', 'Deseados en bundles'], ['playtest', 'Deseados con demo/playtest'], ['free', 'Juegos gratis'], ['watch', 'Ofertas vigiladas'], ['stores', 'Descuentos en locales seguidos'], ['asphalt', 'Códigos de Asphalt']];
+profile.notify ??= { price: true, sale: true, bundles: true, playtest: true, free: true, watch: true, stores: true, asphalt: false };
+profile.notify.stores ??= true;
 profile.notify.price ??= true;
 const b64 = s => Uint8Array.from(atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 const canPush = 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined';

@@ -16,3 +16,6 @@ Lo canjeado y las búsquedas recientes quedan en el navegador.
 
 
 La wishlist de productos se sincroniza por cuenta entre dispositivos. Los avisos push por dispositivo se registran en Supabase y la función `notify` revisa precios y posibles bajadas cada 3 horas junto con las actualizaciones programadas.
+
+
+La sección «¿Dónde comprás?» permite seguir comercios por cuenta y por un período configurable. `notify` revisa las promociones publicadas en PromoPY cada 3 horas y avisa solo cuando aparece un descuento directo; las cuotas sin interés y el cashback no disparan alertas.
