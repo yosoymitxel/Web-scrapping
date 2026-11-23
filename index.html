@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=store-follow-20261120-1">
+<link rel="stylesheet" href="style.css?v=ux-20261123-1">
 </head>
 <body>
 <noscript><p>Este panel necesita JavaScript. Si sos una IA o un script: los datos están en JSON, sin JavaScript. Guía completa: <a href="llms.html">llms.html</a> (o <a href="llms.txt">llms.txt</a>).</p>
@@ -124,9 +124,9 @@
     <svg class="ic"><use href="#i-search"/></svg>
     <input name="q" placeholder="Comercio" autocomplete="off" aria-label="Comercio">
    </form>
-   <div class="store-follow-controls">
+   <div class="store-follow-controls" id="storeFollowControls" hidden>
     <label class="sel"><span>Seguir por</span><select id="storeFollowDuration"><option value="7">7 días</option><option value="30" selected>30 días</option><option value="90">90 días</option><option value="0">Sin vencimiento</option></select></label>
-    <button class="btn sm" id="storeFollowAdd" type="button" disabled>＋ Seguir este local</button>
+    <button class="btn sm" id="storeFollowAdd" type="button">Seguir este local</button>
    </div>
    <div class="srcs"><a id="tjt" class="link" href="https://tarjetea.com.py/stores" target="_blank" rel="noopener">Ver en Tarjeteá <svg class="ic"><use href="#i-link"/></svg></a><a class="link" href="https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/" target="_blank" rel="noopener">Ver en PromoPY <svg class="ic"><use href="#i-link"/></svg></a></div>
    <div class="chips" id="recent"></div>
@@ -138,7 +138,7 @@
 
   <section class="store-follow-section" id="storeFollowSection" hidden aria-labelledby="storeFollowTitle">
    <div class="row-head"><h2 id="storeFollowTitle">Locales que sigo <span class="wish-count" id="storeFollowCount">0</span></h2></div>
-   <p class="mut store-follow-intro">Seguí un comercio aunque hoy no tenga descuentos. Te avisamos cuando aparezca uno directo con tarjetas.</p>
+   <p class="mut store-follow-intro" id="storeFollowIntro"></p>
    <div class="store-follow-list" id="storeFollowList"></div>
   </section>
 
@@ -149,12 +149,12 @@
    <div class="tools" id="pTools" hidden><label class="sel">Orden <select id="pSort"><option value="pa">Precio ↑</option><option value="pd">Precio ↓</option><option value="off">Mayor descuento</option><option value="n">Nombre</option></select></label><button class="chip" id="pOff" aria-pressed="false">Con descuento</button></div>
   </div>
   <div class="pgrid" id="pres" hidden></div>
+  <div class="shops" id="plinks"></div>
   <section class="wish-section" id="wishSection" hidden aria-labelledby="wishTitle">
    <div class="row-head wish-heading"><h2 id="wishTitle">Mi wishlist <span id="wishCount" class="wish-count">0</span></h2><button class="btn sm" id="wishRefresh" type="button">Actualizar precios</button></div>
    <p class="mut wish-intro" id="wishStatus">Guardá productos para seguir sus precios y recibir avisos cuando bajen.</p>
    <div class="wish-list" id="productWishlist"></div>
   </section>
-  <div class="shops" id="plinks"></div>
  </section>
 </main>
 
@@ -164,7 +164,9 @@
   <form id="login" class="stack"><h3 class="sec">Cuenta</h3>
    <p class="mut" id="loginMsg" aria-live="polite" aria-atomic="true">Entrá o creá una cuenta para guardar todo en la nube. Sin cuenta, queda en este navegador.</p>
    <label class="field"><span>Correo</span><input name="email" type="email" autocomplete="email" required></label>
-   <label class="field"><span>Contraseña</span><input name="pass" type="password" autocomplete="current-password" minlength="6"></label>
+   <label class="field"><span>Contraseña</span><input name="pass" type="password" autocomplete="current-password" aria-describedby="passHint"></label>
+   <p class="mut pass-hint" id="passHint">Para crear una cuenta: 8 caracteres o más, con al menos una letra y un número.</p>
+   <label class="show-pass"><input type="checkbox" id="showPass"> Mostrar contraseña</label>
    <div class="tools wrap"><button class="btn sm" value="in">Entrar</button><button class="btn sm ghost" value="up" formnovalidate>Crear cuenta</button><button class="link" type="button" id="forgot">Olvidé mi contraseña</button></div>
   </form>
   <div id="me" class="stack" hidden><h3 class="sec">Cuenta</h3><p class="mut">Sesión: <b id="meMail"></b></p>
@@ -186,6 +188,6 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=store-follow-20261120-1"></script>
+<script type="module" src="app.js?v=ux-20261123-1"></script>
 </body>
 </html>

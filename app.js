@@ -47,15 +47,9 @@ const im = (src, name, extra = '') => src ? `<img loading="lazy" src="${esc(src)
 addEventListener('error', e => {
   const i = e.target; if (i?.tagName !== 'IMG') return;
   if (i.dataset.fl) { const f = document.createElement('b'); f.textContent = i.dataset.fl; i.replaceWith(f); return; }
-  // La miniatura de wishlist tiene un contenedor propio: nunca convertirla en un .ph absoluto global.
-  if (i.classList.contains('wish-thumb') || i.closest('.wish-card')) {
-    const ph = document.createElement('span');
-    ph.className = 'wish-thumb wish-placeholder';
-    ph.setAttribute('aria-hidden', 'true');
-    ph.textContent = i.dataset.ph || 'Producto';
-    i.replaceWith(ph);
-    return;
-  }
+  // Miniatura de wishlist: el contenedor queda y muestra la inicial.
+  const thumb = i.closest('.wish-thumb');
+  if (thumb) { thumb.classList.add('wish-placeholder'); i.replaceWith((i.dataset.ph || '?')[0].toUpperCase()); return; }
   const ph = document.createElement('span'); ph.className = 'ph';
   ph.textContent = i.dataset.ph || (() => { try { return new URL(i.src).hostname.replace(/^www\\./, ''); } catch { return ''; } })();
   i.replaceWith(ph);
@@ -210,6 +204,11 @@ if (sess) {
   catch (e) { wishlistSyncError = String(e?.message || e); }
 }
 const SITE = 'https://yosoymitxel.github.io/Web-scrapping/';
+// Qué le falta al usuario para recibir avisos de wishlist y locales seguidos; drawNotify actualiza pushReady.
+let pushReady = false;
+const alertHint = () => !sess ? '<button class="link" data-prof>Iniciá sesión</button> para recibir avisos en el celular.'
+  : !pushReady ? '<button class="link" data-prof>Activá los avisos</button> en este dispositivo para enterarte.'
+  : 'Avisos activos en este dispositivo.';
 const setSess = d => { sess = { token: d.access_token, refresh: d.refresh_token, until: Date.now() + (d.expires_in - 60) * 1e3, email: d.user.email, userId: d.user.id }; store.set('panel.sess', sess); };
 const loginMsg = t => $('loginMsg').textContent = t;
 const validateEmail = value => {
@@ -252,6 +251,8 @@ $('login').onsubmit = async e => {
   e.target.pass.autocomplete = up ? 'new-password' : 'current-password';
   const submitButtons = [...e.target.querySelectorAll('button[type="submit"],button:not([type])')];
   submitButtons.forEach(button => button.disabled = true);
+  const label = e.submitter.textContent;
+  e.submitter.textContent = up ? 'Creando cuenta…' : 'Entrando…';
   try {
     try {
       if (up) {
@@ -271,8 +272,9 @@ $('login').onsubmit = async e => {
     } catch (err) {
       loginMsg('Sesión iniciada. No se pudo sincronizar la wishlist: ' + String(err?.message || err));
     }
-  } finally { submitButtons.forEach(button => button.disabled = false); }
+  } finally { submitButtons.forEach(button => button.disabled = false); e.submitter.textContent = label; }
 };
+$('showPass').onchange = e => $('login').pass.type = e.target.checked ? 'text' : 'password';
 $('forgot').onclick = async () => {
   const email = $('login').email.value.trim().toLowerCase();
   const invalid = validateEmail(email);
@@ -557,13 +559,16 @@ const followedStoreFor = name => profile.followedStores.find(item => normalizeSt
 const drawStoreFollowButton = () => {
   const name = lastQ.trim();
   const followed = name && followedStoreFor(name);
-  $('storeFollowAdd').disabled = !name || !!followed;
-  $('storeFollowAdd').textContent = followed ? 'Siguiendo este local' : '＋ Seguir este local';
+  $('storeFollowControls').hidden = !name;
+  $('storeFollowDuration').closest('.sel').hidden = !!followed;
+  $('storeFollowAdd').textContent = followed ? 'Dejar de seguir «' + name + '»' : 'Seguir «' + name + '»';
+  $('storeFollowAdd').classList.toggle('ghost', !!followed);
   $('storeFollowAdd').setAttribute('aria-pressed', String(!!followed));
 };
 const drawFollowedStores = () => {
   const list = profile.followedStores;
   $('storeFollowSection').hidden = !list.length;
+  $('storeFollowIntro').innerHTML = 'Te avisamos cuando alguno tenga un descuento directo con tarjeta. ' + alertHint();
   $('storeFollowCount').textContent = String(list.length);
   $('storeFollowList').innerHTML = list.map(item => {
     const expired = !!item.expiresAt && Date.parse(item.expiresAt) <= Date.now();
@@ -588,7 +593,14 @@ const drawFollowedStores = () => {
 };
 $('storeFollowAdd').onclick = async () => {
   const name = lastQ.trim();
-  if (!name || followedStoreFor(name)) return;
+  if (!name) return;
+  const followed = followedStoreFor(name);
+  if (followed) {
+    profile.followedStores = profile.followedStores.filter(item => item !== followed);
+    await saveProfile();
+    drawFollowedStores();
+    return toast('Dejaste de seguir «' + name + '».');
+  }
   if (profile.followedStores.length >= 50) return toast('Llegaste al límite de 50 locales seguidos.');
   const days = Number($('storeFollowDuration').value);
   const now = new Date();
@@ -603,7 +615,7 @@ $('storeFollowAdd').onclick = async () => {
   });
   const synced = await saveProfile();
   drawFollowedStores();
-  toast(synced ? 'Seguimiento guardado en tu cuenta.' : sess ? 'Guardado localmente; no se pudo sincronizar.' : 'Guardado en este navegador. Iniciá sesión para sincronizar y recibir avisos push.');
+  toast(synced ? 'Siguiendo «' + name + '».' : sess ? 'Guardado en este navegador; no se pudo sincronizar.' : 'Guardado en este navegador.');
 };
 $('storeFollowList').onclick = async event => {
   const id = event.target.closest('[data-store-unfollow]')?.dataset.storeUnfollow;
@@ -716,25 +728,26 @@ const wishCard = w => {
       : '';
   const same = (latest.sameProduct || []).length
     ? '<div class="wish-group"><b>Mismo modelo más barato</b>' + latest.sameProduct.map(p => wishOption(p, 'alternativa en otra tienda')).join('') + '</div>' : '';
-  let status = 'Todavía no actualizaste los precios desde que lo guardaste.';
+  let status = 'Precio del día que lo guardaste. Todavía sin revisar.';
   if (latest.error) status = 'No se pudo actualizar: ' + latest.error;
   else if (latest.missing) status = 'No apareció en esta consulta. Puede haberse agotado o cambiado el nombre.';
-  else if (latest.checkedAt) status = 'Revisado ' + new Date(latest.checkedAt).toLocaleString('es-PY', {dateStyle:'short', timeStyle:'short'});
-  const currentBlock = current
-    ? '<div class="wish-current"><span>Precio encontrado' + (current.shop ? ' · ' + esc(current.shop) : '') + '</span><strong>' + wishPrice(current.price) + '</strong>' +
-      (current.old > current.price ? '<small>Antes ' + wishPrice(current.old) + '</small>' : '') + '</div>'
-    : '<div class="wish-current"><span>Precio de referencia</span><strong>' + wishPrice(w.price) + '</strong></div>';
+  else if (latest.checkedAt) status = (discount || trend ? '' : 'Sin cambios · ') + 'revisado ' + new Date(latest.checkedAt).toLocaleString('es-PY', {dateStyle:'short', timeStyle:'short'});
+  const shown = current || w;
+  const href = safeProductUrl(shown.url) || safeProductUrl(w.url);
+  const thumb = w.img ? '<img src="' + esc(w.img) + '" alt="" width="64" height="64" data-ph="' + esc(w.name) + '" loading="lazy" referrerpolicy="no-referrer">' : esc((w.name || '?')[0].toUpperCase());
+  const signals = discount + trend + (latest.missing ? '<span class="wish-signal warn">No encontrado</span>' : '');
   return '<article class="wish-card">' +
     '<div class="wish-card-head">' +
-      (w.img ? '<img class="wish-thumb" src="' + esc(w.img) + '" alt="" data-ph="' + esc(w.name) + '" loading="lazy" referrerpolicy="no-referrer">' : '<span class="wish-thumb wish-placeholder" aria-hidden="true">P</span>') +
-      '<div class="wish-card-title"><b>' + esc(w.name) + '</b><small>Búsqueda: ' + esc(w.query) + '</small><small>Agregado desde ' + esc(w.shop) + '</small></div>' +
-      '<button class="chip wish-remove" type="button" data-wish-remove="' + esc(w.id) + '">Quitar</button>' +
-    '</div>' + currentBlock +
-    '<div class="wish-signals">' + discount + trend +
-      (latest.checkedAt && !discount && !trend && !latest.error && !latest.missing ? '<span class="wish-signal">Sin cambio de precio detectado</span>' : '') +
-      (latest.missing ? '<span class="wish-signal warn">Producto no localizado</span>' : '') +
+      (href ? '<a class="wish-thumb' + (w.img ? '' : ' wish-placeholder') + '" href="' + esc(href) + '" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">' + thumb + '</a>'
+        : '<span class="wish-thumb' + (w.img ? '' : ' wish-placeholder') + '" aria-hidden="true">' + thumb + '</span>') +
+      '<div class="wish-card-title">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(w.name) + '</a>' : '<b>' + esc(w.name) + '</b>') +
+        '<small>' + esc(shown.shop || w.shop) + '</small></div>' +
     '</div>' +
-    (latest.error || latest.missing ? '<p class="mut wish-status">' + esc(status) + '</p>' : latest.checkedAt ? '<p class="mut wish-status">' + esc(status) + '</p>' : '<p class="mut wish-status">' + esc(status) + '</p>') +
+    '<div class="wish-current"><strong>' + wishPrice(shown.price) + '</strong>' +
+      (current && current.old > current.price ? '<small><s>' + wishPrice(current.old) + '</s></small>' : '') + '</div>' +
+    (signals ? '<div class="wish-signals">' + signals + '</div>' : '') +
+    '<div class="wish-foot"><p class="mut wish-status">' + esc(status) + '</p>' +
+      '<button class="chip wish-remove" type="button" data-wish-remove="' + esc(w.id) + '" aria-label="Quitar ' + esc(w.name) + ' de la wishlist">Quitar</button></div>' +
     same + '</article>';
 };
 const drawWishlist = status => {
@@ -745,8 +758,7 @@ const drawWishlist = status => {
   if (status !== undefined) $('wishStatus').textContent = status;
   else if (wishlistSyncError) $('wishStatus').textContent = 'La wishlist está en este navegador, pero no se pudo sincronizar: ' + wishlistSyncError;
   else if (!items.length) $('wishStatus').textContent = 'Guardá productos desde los resultados para seguir sus precios.';
-  else if (sess) $('wishStatus').textContent = 'Wishlist sincronizada con tu cuenta. Los precios se revisan automáticamente cada 3 horas y también podés actualizarlos ahora.';
-  else $('wishStatus').textContent = 'Wishlist guardada en este navegador. Iniciá sesión para sincronizar entre dispositivos y recibir avisos automáticos de bajadas de precio.';
+  else $('wishStatus').innerHTML = 'Los precios se revisan solos cada 3 horas. ' + alertHint();
 };
 const addProductToWishlist = async p => {
   if (!p || isProductWished(p)) return;
@@ -1036,10 +1048,11 @@ const drawNotify = () => {
   const on = !!sess && !!localPushSub && Notification.permission === 'granted';
   $('pushOn').hidden = on; $('pushOff').hidden = !on;
   $('pushMsg').textContent = !canPush ? 'Este navegador no permite avisos push. En iPhone: agregá el panel a la pantalla de inicio.'
-    : !sess ? 'Entrá con tu cuenta para sincronizar la wishlist y activar avisos en este dispositivo.'
-    : on ? 'Avisos activos en este dispositivo. Podés activar otros dispositivos con la misma cuenta.'
-    : 'Los avisos de bajada de precio se revisan automáticamente cada 3 horas. Activá este dispositivo para recibirlos.';
+    : !sess ? 'Iniciá sesión arriba para activar avisos en este dispositivo.'
+    : on ? 'Avisos activos en este dispositivo. Elegí abajo de qué querés enterarte.'
+    : 'Se revisa todo cada 3 horas. Activá este dispositivo para recibir lo que marques abajo.';
   $('pushOn').disabled = !canPush || !sess;
+  if (pushReady !== on) { pushReady = on; drawFollowedStores(); drawWishlist(); }
 };
 $('notifyChips').onclick = e => {
   const k = e.target.closest('[data-n]')?.dataset.n;
