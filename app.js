@@ -649,6 +649,7 @@ const search = async q => {
   const ql = q.toLowerCase();
   document.querySelector('#tq input').value = q;
   $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
+  $('promoPyLink').href = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/?q=' + encodeURIComponent(q);
   $('promos').innerHTML = '<div class="skel"></div><div class="skel"></div>';
   $('myBanks').innerHTML = '';
   await getPromos();
