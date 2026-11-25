@@ -1,4 +1,5 @@
 import { findWishlistMatch, isSameProductModel } from './supabase/functions/notify/product-matching.mjs?v=20261120-4';
+import { categoryOfProduct, filterProducts } from './scripts/product-filters.mjs?v=20261125-2';
 const REDEEM = 'https://www.gameloft.com/redeem/asphalt-legends?playerId=u-79g1efe';
 const PROMOS = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/promos.json';
 // Si el CDN no carga, la página funciona igual sin animaciones
@@ -825,10 +826,31 @@ const sorts = {pa:(a,b) => a.price - b.price, pd:(a,b) => b.price - a.price, off
 const drawProd = (preservePage = false) => {
   const {items} = prod;
   const shops = [...new Set(items.map(p => p.shop))].sort();
+  const selectedCategory = $('pCategory').value;
+  const categories = [...new Set(items.map(p => categoryOfProduct(p.name)))].sort((a,b) => a.localeCompare(b, 'es'));
+  $('pCategory').innerHTML = '<option value="">Todas</option>' + categories.map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('');
+  $('pCategory').value = categories.includes(selectedCategory) ? selectedCategory : '';
   $('pChips').innerHTML = items.length ? ['', ...shops].map(n => '<button class="chip" data-s="' + esc(n) + '" aria-pressed="' + (n === prod.shop) + '">' + esc(n || 'Todas') + '<i>' + (n ? items.filter(p => p.shop === n).length : items.length) + '</i></button>').join('') : '';
   $('pTools').hidden = !items.length;
-  const onlyOff = $('pOff').getAttribute('aria-pressed') === 'true';
-  paged($('pres'), items.filter(p => (!prod.shop || p.shop === prod.shop) && (!onlyOff || offOf(p))).sort(sorts[$('pSort').value]), prodCard, empty('Sin resultados.'), 12, preservePage);
+  const minPrice = $('pMinPrice').value === '' ? null : Number($('pMinPrice').value);
+  const maxPrice = $('pMaxPrice').value === '' ? null : Number($('pMaxPrice').value);
+  const invalidRange = minPrice !== null && maxPrice !== null && minPrice > maxPrice;
+  const filtered = invalidRange ? [] : filterProducts(items, {
+    shop: prod.shop,
+    category: $('pCategory').value,
+    minPrice: Number.isFinite(minPrice) ? minPrice : null,
+    maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
+    onlyOff: $('pOff').getAttribute('aria-pressed') === 'true',
+  }).sort(sorts[$('pSort').value]);
+  $('pResultCount').textContent = invalidRange ? 'Rango inválido' : filtered.length + ' de ' + items.length + ' productos';
+  paged(
+    $('pres'),
+    filtered,
+    prodCard,
+    empty(invalidRange ? 'El precio mínimo no puede superar el máximo.' : 'No hay productos que coincidan con estos filtros.'),
+    12,
+    preservePage
+  );
 };
 const findWishlistProduct = findWishlistMatch;
 const refreshProductWishlist = async () => {
@@ -957,6 +979,9 @@ document.addEventListener('visibilitychange', async () => {
   catch (e) { wishlistSyncError = String(e?.message || e); drawWishlist(); }
 });
 $('pSort').onchange = () => drawProd();
+$('pCategory').onchange = () => drawProd();
+$('pMinPrice').oninput = () => drawProd();
+$('pMaxPrice').oninput = () => drawProd();
 $('pOff').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); drawProd(); };
 $('pChips').onclick = e => { const n = e.target.closest('[data-s]')?.dataset.s; if (n == null) return; prod.shop = n; drawProd(); reveal('#pres .pcard'); };
 $('pq').onsubmit = async e => {
@@ -966,6 +991,13 @@ $('pq').onsubmit = async e => {
   const row = (t, l) => `<div class="chips"><span class="mut">${t}</span>${l.map(([n, u]) => A(u + q, esc(n), 'chip')).join('')}</div>`;
   $('plinks').innerHTML = `<p class="mut">Buscar directo en cada tienda</p>${row('General', GENERAL)}${row('Electro', SHOPS)}`;
   prod = { items: [], shop: '' };
+  $('pCategory').value = '';
+  $('pMinPrice').value = '';
+  $('pMaxPrice').value = '';
+  $('pSort').value = 'pa';
+  $('pOff').setAttribute('aria-pressed', 'false');
+  $('pResultCount').textContent = '';
+  $('pTools').hidden = true;
   $('pres').hidden = false; $('pChips').innerHTML = '';
   paged($('pres'), [], prodCard, '<div class="skel"></div><div class="skel"></div>');
   let ok = true;
@@ -1103,3 +1135,4 @@ if (canPush) {
   $('pushOn').disabled = true;
   $('pushMsg').textContent = 'Este navegador no permite avisos push. En iPhone: agregá el panel a la pantalla de inicio.';
 }
+

@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1795480310-20261123-1">
+<link rel="stylesheet" href="style.css?v=20261125-1">
 </head>
 <body>
 <noscript><p>Este panel necesita JavaScript. Si sos una IA o un script: los datos están en JSON, sin JavaScript. Guía completa: <a href="llms.html">llms.html</a> (o <a href="llms.txt">llms.txt</a>).</p>
@@ -146,7 +146,14 @@
    <h1>¿Cuánto cuesta?</h1>
    <form id="pq" class="search big" role="search"><svg class="ic"><use href="#i-search"/></svg><input name="q" placeholder="Ej: tv 55" autocomplete="off" aria-label="Producto"></form>
    <div class="chips" id="pChips" aria-label="Filtrar por tienda"></div>
-   <div class="tools" id="pTools" hidden><label class="sel">Orden <select id="pSort"><option value="pa">Precio ↑</option><option value="pd">Precio ↓</option><option value="off">Mayor descuento</option><option value="n">Nombre</option></select></label><button class="chip" id="pOff" aria-pressed="false">Con descuento</button></div>
+   <div class="tools product-filters" id="pTools" hidden>
+    <label class="sel">Orden <select id="pSort"><option value="pa">Precio ↑</option><option value="pd">Precio ↓</option><option value="off">Mayor descuento</option><option value="n">Nombre</option></select></label>
+    <label class="sel">Categoría <select id="pCategory"><option value="">Todas</option></select></label>
+    <label class="price-filter">Desde ₲ <input id="pMinPrice" type="number" min="0" step="1000" inputmode="numeric" placeholder="Mínimo" aria-label="Precio mínimo en guaraníes"></label>
+    <label class="price-filter">Hasta ₲ <input id="pMaxPrice" type="number" min="0" step="1000" inputmode="numeric" placeholder="Máximo" aria-label="Precio máximo en guaraníes"></label>
+    <button class="chip" id="pOff" aria-pressed="false">Con descuento</button>
+    <span class="mut product-result-count" id="pResultCount" aria-live="polite"></span>
+   </div>
   </div>
   <div class="pgrid" id="pres" hidden></div>
   <div class="shops" id="plinks"></div>
@@ -188,6 +195,6 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=1795481638-20261123-1"></script>
+<script type="module" src="app.js?v=20261125-2"></script>
 </body>
 </html>

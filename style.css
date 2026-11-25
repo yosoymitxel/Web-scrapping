@@ -451,3 +451,18 @@ a.chip { gap: 6px; }
 .show-pass input { width: 18px; height: 18px; accent-color: var(--ac); cursor: pointer; }
 .mut .link { min-height: 0; font-size: inherit; color: var(--tx); text-decoration-color: currentColor; }
 .card-hero .chips:empty { display: none; }
+
+/* Filtros de búsqueda de productos */
+#pTools { align-items: center; }
+.price-filter { display: inline-flex; align-items: center; gap: 7px; color: var(--mut); font-size: 14px; white-space: nowrap; }
+.price-filter input { width: 124px; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--s1); color: var(--tx); font: inherit; font-variant-numeric: tabular-nums; }
+.price-filter input:focus { outline: 2px solid var(--ac); outline-offset: 2px; }
+.product-result-count { margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) {
+  #pTools { align-items: center; }
+  #pTools .sel { flex: 1 1 calc(50% - 8px); justify-content: space-between; }
+  #pTools .sel select { max-width: 58%; min-width: 0; }
+  .price-filter { flex: 1 1 calc(50% - 8px); justify-content: space-between; }
+  .price-filter input { width: 58%; }
+  .product-result-count { flex: 1 0 100%; margin-left: 0; }
+}

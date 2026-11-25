@@ -7,6 +7,8 @@ on:
       - 'supabase/functions/notify/**'
       - 'app.js'
       - 'scripts/product-matching.test.mjs'
+      - 'scripts/product-filters.mjs'
+      - 'scripts/product-filters.test.mjs'
       - 'scripts/store-follow.test.mjs'
       - 'scripts/product-matching.live-smoke.mjs'
       - '.github/workflows/products-smoke.yml'
@@ -20,6 +22,8 @@ jobs:
           node-version: 22
       - name: Test followed-store tracking and promotion alerts
         run: node --test scripts/store-follow.test.mjs
+      - name: Test product category and price filters
+        run: node --test scripts/product-filters.test.mjs
       - name: Test same-model matching across product types
         run: node --test scripts/product-matching.test.mjs
       - name: Check live same-model matches across stores
