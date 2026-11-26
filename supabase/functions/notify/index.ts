@@ -1,6 +1,7 @@
 // Comprueba wishlist de productos y envía push por dispositivo. Se ejecuta cada 3 h desde Actions.
 import webpush from 'npm:web-push@3.6.7';
 import { findWishlistMatch, safeProductUrl } from './product-matching.mjs';
+import { analyzeWishlistPrice, findComparableOffers, targetPriceState } from './wishlist-tracking.mjs';
 import { updateFollowedStore } from './store-follow.mjs';
 
 const URL_ = Deno.env.get('SUPABASE_URL')!;
@@ -132,6 +133,7 @@ Deno.serve(async req => {
   });
 
   const priceAlerts = new Map<string, any[]>();
+  const targetAlerts = new Map<string, any[]>();
   let updatedItems = 0;
   const checkedAt = new Date().toISOString();
   for (const row of wishlistRows) {
@@ -145,33 +147,49 @@ Deno.serve(async req => {
       const foundRaw = matchProduct(result.items, item);
       if (foundRaw && Number(foundRaw.price) > 0) {
         const found = productSnapshot(foundRaw);
-        const previousLatest = item.latest?.matched;
-        const history = Array.isArray(item.history) ? item.history : [];
-        const previousHistory = [...history].reverse().find((h: any) => h.shop === found.shop && Number(h.price) > 0);
-        const baseline = previousLatest?.shop === found.shop && Number(previousLatest.price) > 0
-          ? Number(previousLatest.price)
-          : previousHistory ? Number(previousHistory.price)
-          : item.shop === found.shop && Number(item.price) > 0 ? Number(item.price) : null;
-        const drop = baseline != null && found.price < baseline
-          ? { direction: 'down', amount: baseline - found.price, percent: Math.round((baseline - found.price) / baseline * 100), shop: found.shop, previous: baseline }
-          : null;
-
-        const last = history[history.length - 1];
-        if (!last || last.shop !== found.shop || Number(last.price) !== found.price) {
-          history.push({ price: found.price, shop: found.shop, url: found.url, at: checkedAt });
-        }
-        item.history = history.slice(-24);
+        const priceState = analyzeWishlistPrice(item, found, checkedAt);
+        const targetState = targetPriceState(item, found.price);
+        const offers = findComparableOffers(result.items, found, 4).map(productSnapshot);
+        item.history = priceState.history;
         item.latest = {
           ...(item.latest || {}),
           checkedAt,
           matched: found,
+          offers,
+          lowestPrice: priceState.lowestPrice,
+          targetReached: targetState.reached,
           missing: false,
           error: '',
-          change: drop ? { direction: 'down', amount: drop.amount, percent: drop.percent, shop: drop.shop } : null,
+          change: priceState.change,
         };
-        if (drop) {
+        if (targetState.shouldNotify && profileByUser.get(row.user_id)?.notify?.price !== false &&
+            (subscriptionsByUser.get(row.user_id) || []).length > 0) {
+          item.targetAlertedFor = targetState.targetPrice;
+          item.targetAlertedAt = checkedAt;
+          const list = targetAlerts.get(row.user_id) || [];
+          list.push({
+            name: found.name || item.name,
+            shop: found.shop,
+            price: found.price,
+            targetPrice: targetState.targetPrice,
+            url: found.url,
+          });
+          targetAlerts.set(row.user_id, list);
+        } else if (targetState.shouldNotify) {
+          // No marcar como enviado: el usuario puede activar avisos más adelante.
+          delete item.targetAlertedFor;
+          delete item.targetAlertedAt;
+        }
+        if (priceState.change?.direction === 'down' && !targetState.shouldNotify) {
           const list = priceAlerts.get(row.user_id) || [];
-          list.push({ name: found.name || item.name, shop: found.shop, price: found.price, previous: baseline, percent: drop.percent, url: found.url });
+          list.push({
+            name: found.name || item.name,
+            shop: found.shop,
+            price: found.price,
+            previous: priceState.change.previous,
+            percent: priceState.change.percent,
+            url: found.url,
+          });
           priceAlerts.set(row.user_id, list);
         }
       } else {
@@ -265,6 +283,20 @@ Deno.serve(async req => {
     }
 
 
+
+    const targets = targetAlerts.get(userId) || [];
+    if (want.price && targets.length) {
+      const body = targets.slice(0,3).map(a =>
+        `${a.name}: ${money(a.price)} (objetivo ${money(a.targetPrice)}) · ${a.shop}`
+      ).join(' | ') + (targets.length > 3 ? ` y ${targets.length - 3} más` : '');
+      const payload = {
+        title: `Llegó al precio objetivo (${targets.length})`,
+        body,
+        url: PANEL + '#tarjetas',
+        tag: 'wishlist-target',
+      };
+      for (const sub of userSubs) if (await pushPayload(sub.subscription, payload, sub.endpoint)) sent++;
+    }
 
     const alerts = priceAlerts.get(userId) || [];
     if (want.price && alerts.length) {

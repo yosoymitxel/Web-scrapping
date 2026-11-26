@@ -1,4 +1,5 @@
 import { findWishlistMatch, isSameProductModel } from './supabase/functions/notify/product-matching.mjs?v=20261120-4';
+import { analyzeWishlistPrice, findComparableOffers } from './supabase/functions/notify/wishlist-tracking.mjs?v=20261126-1';
 import { categoryOfProduct, filterProducts } from './scripts/product-filters.mjs?v=20261125-2';
 const REDEEM = 'https://www.gameloft.com/redeem/asphalt-legends?playerId=u-79g1efe';
 const PROMOS = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/promos.json';
@@ -711,55 +712,125 @@ const wishSnapshot = p => ({
   img: String(p.img || ''),
 });
 const wishPrice = n => pygS(Number(n) || 0);
-const wishOption = (p, label) => {
-  const href = safeProductUrl(p.url);
-  return '<a class="wish-option" href="' + esc(href || '#') + '" target="_blank" rel="noopener">' +
-    '<span><b>' + esc(p.name) + '</b><small>' + esc(p.shop) + (label ? ' · ' + esc(label) : '') + '</small></span>' +
-    '<strong>' + wishPrice(p.price) + '</strong></a>';
+const wishlistView = { search: '', filter: 'all', sort: 'recent' };
+const wishlistBusyIds = new Set();
+let wishlistRefreshingAll = false;
+const wishCurrentPrice = w => Number(w?.latest?.matched?.price || w?.price) || 0;
+const wishSavedDrop = w => {
+  const current = wishCurrentPrice(w), saved = Number(w.price) || 0;
+  return saved > current && saved > 0 ? (saved - current) / saved : 0;
+};
+const wishState = w => {
+  const latest = w.latest || {}, current = wishCurrentPrice(w), target = Number(w.targetPrice);
+  if (latest.error) return 'error';
+  if (latest.missing) return 'missing';
+  if (Number.isFinite(target) && target > 0 && current > 0 && current <= target) return 'target';
+  if (latest.change?.direction === 'down' || wishSavedDrop(w) > 0) return 'down';
+  if (latest.change?.direction === 'up' || (Number(w.price) > 0 && current > Number(w.price))) return 'up';
+  return latest.checkedAt ? 'stable' : 'pending';
+};
+const wishStateLabel = state => ({
+  error:'Error de revisión', missing:'No encontrado', target:'Precio objetivo alcanzado',
+  down:'Bajó de precio', up:'Subió de precio', stable:'Sin cambios', pending:'Pendiente de revisión',
+}[state] || 'Pendiente');
+const wishDate = value => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es-PY', {dateStyle:'short', timeStyle:'short'});
+};
+const wishHistoryMarkup = w => {
+  const history = (Array.isArray(w.history) ? w.history : []).filter(entry => Number(entry.price) > 0).slice(-12);
+  if (history.length < 2) return '<div class="wish-history"><div class="wish-history-copy"><b>Historial de precios</b><small>Se forma con las próximas revisiones</small></div><span class="wish-history-empty">Aún sin tendencia</span></div>';
+  const values = history.map(entry => Number(entry.price));
+  const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
+  const bars = history.map(entry => {
+    const height = Math.round(7 + ((Number(entry.price) - min) / range) * 29);
+    return '<i style="height:' + height + 'px" title="' + esc(wishPrice(entry.price) + ' · ' + wishDate(entry.at)) + '"></i>';
+  }).join('');
+  return '<div class="wish-history"><div class="wish-history-copy"><b>Historial de precios</b><small>Mínimo registrado: ' + wishPrice(min) + '</small></div><div class="wish-history-bars" role="img" aria-label="Historial de ' + wishPrice(values[0]) + ' a ' + wishPrice(values[values.length - 1]) + '">' + bars + '</div></div>';
+};
+const wishOffer = (offer, currentPrice) => {
+  const href = safeProductUrl(offer.url);
+  const saving = currentPrice > Number(offer.price) ? currentPrice - Number(offer.price) : 0;
+  return '<a class="wish-offer" href="' + esc(href || '#') + '" target="_blank" rel="noopener"><span><b>' + esc(offer.shop) + '</b><small>' + esc(offer.name) + (saving ? ' · ahorrás ' + wishPrice(saving) : '') + '</small></span><strong>' + wishPrice(offer.price) + '</strong></a>';
 };
 const wishCard = w => {
-  const latest = w.latest || {};
-  const current = latest.matched || null;
-  const discount = current && offOf(current) > 0
-    ? '<span class="wish-signal good">Oferta vigente: -' + offOf(current) + '% en ' + esc(current.shop) + '</span>' : '';
-  const change = latest.change;
-  const trend = change?.direction === 'down'
-    ? '<span class="wish-signal good">Bajó ' + wishPrice(change.amount) + ' (' + change.percent + '%) en ' + esc(change.shop) + '</span>'
-    : change?.direction === 'up'
-      ? '<span class="wish-signal warn">Subió ' + wishPrice(change.amount) + ' (' + change.percent + '%) en ' + esc(change.shop) + '</span>'
-      : '';
-  const same = (latest.sameProduct || []).length
-    ? '<div class="wish-group"><b>Mismo modelo más barato</b>' + latest.sameProduct.map(p => wishOption(p, 'alternativa en otra tienda')).join('') + '</div>' : '';
-  let status = 'Precio del día que lo guardaste. Todavía sin revisar.';
-  if (latest.error) status = 'No se pudo actualizar: ' + latest.error;
-  else if (latest.missing) status = 'No apareció en esta consulta. Puede haberse agotado o cambiado el nombre.';
-  else if (latest.checkedAt) status = (discount || trend ? '' : 'Sin cambios · ') + 'revisado ' + new Date(latest.checkedAt).toLocaleString('es-PY', {dateStyle:'short', timeStyle:'short'});
-  const shown = current || w;
-  const href = safeProductUrl(shown.url) || safeProductUrl(w.url);
-  const thumb = w.img ? '<img src="' + esc(w.img) + '" alt="" width="64" height="64" data-ph="' + esc(w.name) + '" loading="lazy" referrerpolicy="no-referrer">' : esc((w.name || '?')[0].toUpperCase());
-  const signals = discount + trend + (latest.missing ? '<span class="wish-signal warn">No encontrado</span>' : '');
-  return '<article class="wish-card">' +
+  const latest = w.latest || {}, current = latest.matched || w;
+  const currentPrice = Number(current.price) || Number(w.price) || 0;
+  const savedPrice = Number(w.price) || 0, targetPrice = Number(w.targetPrice) || 0;
+  const state = wishState(w);
+  const statusStyle = state === 'down' || state === 'target' ? ' good' : ['up','missing','error'].includes(state) ? ' warn' : '';
+  const href = safeProductUrl(current.url) || safeProductUrl(w.url);
+  const thumb = w.img
+    ? '<img src="' + esc(w.img) + '" alt="" width="58" height="58" data-ph="' + esc(w.name) + '" loading="lazy" referrerpolicy="no-referrer">'
+    : esc((w.name || '?')[0].toUpperCase());
+  const delta = savedPrice > 0 && currentPrice > 0 ? savedPrice - currentPrice : 0;
+  const deltaText = delta > 0 ? '<span class="wish-price-delta good">↓ ' + wishPrice(delta) + ' vs. al guardar</span>'
+    : delta < 0 ? '<span class="wish-price-delta warn">↑ ' + wishPrice(Math.abs(delta)) + ' vs. al guardar</span>'
+    : '<span class="wish-price-delta">Sin variación</span>';
+  const targetNote = !targetPrice ? 'Sin objetivo configurado'
+    : currentPrice <= targetPrice ? 'Objetivo alcanzado'
+    : 'Faltan ' + wishPrice(currentPrice - targetPrice);
+  const offers = Array.isArray(latest.offers) ? latest.offers : (Array.isArray(latest.sameProduct) ? latest.sameProduct : []);
+  const offersMarkup = offers.length ? '<div class="wish-offers"><b>Comparar otras tiendas</b>' + offers.slice(0,4).map(offer => wishOffer(offer,currentPrice)).join('') + '</div>' : '';
+  const updated = latest.checkedAt ? 'Revisado ' + wishDate(latest.checkedAt) : 'Todavía no se revisó';
+  const targetValue = targetPrice > 0 ? String(Math.round(targetPrice)) : '';
+  const busy = wishlistBusyIds.has(String(w.id));
+  return '<article class="wish-card" data-wish-card="' + esc(w.id) + '">' +
     '<div class="wish-card-head">' +
-      (href ? '<a class="wish-thumb' + (w.img ? '' : ' wish-placeholder') + '" href="' + esc(href) + '" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">' + thumb + '</a>'
-        : '<span class="wish-thumb' + (w.img ? '' : ' wish-placeholder') + '" aria-hidden="true">' + thumb + '</span>') +
-      '<div class="wish-card-title">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(w.name) + '</a>' : '<b>' + esc(w.name) + '</b>') + '</div>' +
+      (href ? '<a class="wish-thumb" href="' + esc(href) + '" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">' + thumb + '</a>' : '<span class="wish-thumb wish-placeholder" aria-hidden="true">' + thumb + '</span>') +
+      '<div class="wish-title-group"><div class="wish-card-title">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(w.name) + '</a>' : esc(w.name)) + '</div>' +
+      '<div class="wish-card-meta"><span>' + esc(current.shop || w.shop) + '</span><span>Guardado ' + esc(wishDate(w.addedAt) || 'sin fecha') + '</span></div>' +
+      '<span class="wish-card-state' + statusStyle + '">' + wishStateLabel(state) + '</span></div>' +
     '</div>' +
-    '<div class="wish-current"><small class="wish-shop">' + esc(shown.shop || w.shop) + '</small><span class="wish-price"><strong>' + wishPrice(shown.price) + '</strong>' +
-      (current && current.old > current.price ? '<small><s>' + wishPrice(current.old) + '</s></small>' : '') + '</span></div>' +
-    (signals ? '<div class="wish-signals">' + signals + '</div>' : '') +
-    '<div class="wish-foot"><p class="mut wish-status">' + esc(status) + '</p>' +
-      '<button class="chip wish-remove" type="button" data-wish-remove="' + esc(w.id) + '" aria-label="Quitar ' + esc(w.name) + ' de la wishlist">Quitar</button></div>' +
-    same + '</article>';
+    '<div class="wish-pricing"><div><small>Precio actual</small><strong class="wish-current-price">' + wishPrice(currentPrice) + '</strong><small>Al guardar: ' + wishPrice(savedPrice) + '</small></div>' + deltaText + '</div>' +
+    '<div class="wish-target"><div class="wish-target-top"><b>Precio objetivo</b><small>' + esc(targetNote) + '</small></div>' +
+      '<form class="wish-target-form" data-wish-target="' + esc(w.id) + '">' +
+      '<input name="targetPrice" type="number" min="1" step="1000" inputmode="numeric" placeholder="Ej. 350000" aria-label="Precio objetivo en guaraníes para ' + esc(w.name) + '" value="' + targetValue + '">' +
+      '<button class="chip" type="submit">Guardar meta</button>' + (targetPrice ? '<button class="chip" type="button" data-wish-target-clear="' + esc(w.id) + '">Quitar</button>' : '') +
+      '</form><small class="wish-target-note">' + (sess ? 'Aviso cuando llegue al objetivo, con notificaciones activas.' : 'Se guarda en este dispositivo; iniciá sesión para sincronizarlo y recibir avisos.') + '</small></div>' +
+    wishHistoryMarkup(w) + offersMarkup +
+    '<div class="wish-card-footer"><small>' + esc(latest.error ? 'Falló la revisión: ' + latest.error : updated) + '</small>' +
+    '<div class="wish-card-actions"><button class="chip" type="button" data-wish-refresh="' + esc(w.id) + '"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Revisando…' : 'Actualizar') + '</button><button class="chip" type="button" data-wish-remove="' + esc(w.id) + '"' + (busy ? ' disabled' : '') + '>Quitar</button></div></div>' +
+  '</article>';
 };
 const drawWishlist = status => {
-  const items = profile.productWishlist || [];
-  $('wishSection').hidden = !items.length;
+  const items = profile.productWishlist || [], states = items.map(w => wishState(w));
+  const count = state => states.filter(value => value === state).length;
+  $('wishSection').hidden = false;
   $('wishCount').textContent = String(items.length);
-  $('productWishlist').innerHTML = items.map(wishCard).join('');
+  $('wishStatTotal').textContent = String(items.length);
+  $('wishStatDown').textContent = String(count('down'));
+  $('wishStatTarget').textContent = String(count('target'));
+  $('wishStatReview').textContent = String(count('pending') + count('missing') + count('error'));
+  $('wishTools').hidden = !items.length;
+  $('wishEmpty').hidden = !!items.length;
+  $('wishRefresh').disabled = !items.length || wishlistRefreshingAll || wishlistBusyIds.size > 0;
+  $('wishRefresh').textContent = wishlistRefreshingAll ? 'Actualizando…' : 'Actualizar todos';
+  const visible = items.filter(w => {
+    const state = wishState(w), search = wishlistView.search;
+    const offers = Array.isArray(w.latest?.offers) ? w.latest.offers : [];
+    const haystack = [w.name,w.shop,w.query,w.latest?.matched?.shop,...offers.map(offer => offer.shop)].join(' ').toLocaleLowerCase('es');
+    const stateMatch = wishlistView.filter === 'all' || state === wishlistView.filter
+      || (wishlistView.filter === 'down' && wishSavedDrop(w) > 0)
+      || (wishlistView.filter === 'up' && wishCurrentPrice(w) > Number(w.price));
+    return stateMatch && (!search || haystack.includes(search));
+  });
+  const stamp = value => { const parsed = Date.parse(value || ''); return Number.isFinite(parsed) ? parsed : 0; };
+  const sorters = {
+    recent:(a,b) => stamp(b.addedAt)-stamp(a.addedAt),
+    price:(a,b) => wishCurrentPrice(a)-wishCurrentPrice(b),
+    drop:(a,b) => wishSavedDrop(b)-wishSavedDrop(a),
+    name:(a,b) => String(a.name || '').localeCompare(String(b.name || ''),'es'),
+    checked:(a,b) => stamp(b.latest?.checkedAt)-stamp(a.latest?.checkedAt),
+  };
+  visible.sort(sorters[wishlistView.sort] || sorters.recent);
+  $('productWishlist').innerHTML = visible.length ? visible.map(wishCard).join('')
+    : items.length ? '<div class="wish-filter-empty">No hay productos que coincidan. Cambiá el filtro o limpiá la búsqueda.</div>' : '';
   if (status !== undefined) $('wishStatus').textContent = status;
-  else if (wishlistSyncError) $('wishStatus').textContent = 'La wishlist está en este navegador, pero no se pudo sincronizar: ' + wishlistSyncError;
-  else if (!items.length) $('wishStatus').textContent = 'Guardá productos desde los resultados para seguir sus precios.';
-  else $('wishStatus').innerHTML = 'Los precios se revisan solos cada 3 horas. ' + alertHint();
+  else if (wishlistSyncError) $('wishStatus').textContent = 'La wishlist está en este dispositivo, pero no se pudo sincronizar: ' + wishlistSyncError;
+  else $('wishStatus').textContent = items.length ? 'Las revisiones automáticas se realizan cada 3 horas.' : 'Guardá productos desde los resultados para empezar a seguirlos.';
+  $('wishAlertHint').innerHTML = items.length ? alertHint() : '';
 };
 const addProductToWishlist = async p => {
   if (!p || isProductWished(p)) return;
@@ -808,15 +879,15 @@ const prodCard = p => {
       (tracked ? 'En wishlist' : 'Seguir precio') + '</button></article>';
 };
 async function searchProducts(q, force = false) {
-  const k = q.toLowerCase(), all = store.get('panel.prod.v2', {});
-  const c = all[k];
-  if (!force && c && Date.now() - c.t < 6 * 36e5) return c.data;
+  const k = q.toLowerCase(), cached = store.get('panel.prod.v2', {})[k];
+  if (!force && cached && Date.now() - cached.t < 6 * 36e5) return cached.data;
   const url = 'https://uxhftljmnljmtyynzyie.supabase.co/functions/v1/products?q=' + encodeURIComponent(q) + (force ? '&refresh=1' : '');
-  const r = await fetch(url);
+  const r = await fetch(url, { signal: AbortSignal.timeout(90000) });
   if (!r.ok) throw new Error(r.status);
   const d = (await r.json()).filter(p => Number.isFinite(p.price) && p.price > 0);
-  all[k] = {t:Date.now(), data:d};
-  const keep = Object.entries(all).sort((x,y) => y[1].t - x[1].t).slice(0,12);
+  const latestCache = store.get('panel.prod.v2', {});
+  latestCache[k] = {t:Date.now(), data:d};
+  const keep = Object.entries(latestCache).sort((x,y) => y[1].t - x[1].t).slice(0,12);
   store.set('panel.prod.v2', Object.fromEntries(keep));
   return d;
 }
@@ -853,63 +924,86 @@ const drawProd = (preservePage = false) => {
   );
 };
 const findWishlistProduct = findWishlistMatch;
-const refreshProductWishlist = async () => {
-  const items = profile.productWishlist || [];
+const runWithLimit = async (items, limit, task) => {
+  let cursor = 0;
+  const workers = Array.from({length:Math.min(limit,items.length)}, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await task(items[index]);
+    }
+  });
+  await Promise.all(workers);
+};
+const refreshProductWishlist = async targetIds => {
+  const allItems = profile.productWishlist || [];
+  const selected = targetIds ? new Set(targetIds.map(String)) : null;
+  const items = selected ? allItems.filter(item => selected.has(String(item.id))) : allItems;
   if (!items.length) return;
-  const button = $('wishRefresh');
-  button.disabled = true;
-  drawWishlist('Consultando de nuevo las tiendas guardadas en tu wishlist…');
+
+  wishlistRefreshingAll = !selected;
+  items.forEach(item => wishlistBusyIds.add(String(item.id)));
+  let finalMessage = '';
+  drawWishlist(selected ? 'Actualizando el producto seleccionado…' : 'Actualizando precios con un máximo de 3 búsquedas simultáneas…');
+
   try {
-    const queries = [...new Set(items.map(w => String(w.query || w.name).trim()).filter(Boolean))];
+    const queries = new Map();
+    for (const item of items) {
+      const query = String(item.query || item.name || '').trim();
+      if (query) queries.set(query.toLowerCase(),query);
+    }
     const results = new Map();
-    await Promise.all(queries.map(async q => {
-      try { results.set(q.toLowerCase(), {items:await searchProducts(q, true), error:''}); }
-      catch (e) { results.set(q.toLowerCase(), {items:[], error:String(e?.message || e)}); }
-    }));
+    await runWithLimit([...queries.values()],3,async query => {
+      try { results.set(query.toLowerCase(),{items:await searchProducts(query,true),error:''}); }
+      catch (error) { results.set(query.toLowerCase(),{items:[],error:String(error?.message || error)}); }
+    });
+
     const checkedAt = new Date().toISOString();
-    for (const w of items) {
-      const result = results.get(String(w.query || w.name).trim().toLowerCase());
+    let updated=0,missing=0,failed=0;
+    for (const item of items) {
+      const key = String(item.query || item.name || '').trim().toLowerCase();
+      const result = results.get(key);
       if (!result || result.error) {
-        w.latest = {...(w.latest || {}), checkedAt, error:result?.error || 'No se pudo consultar esta búsqueda.'};
+        item.latest = {...(item.latest || {}),checkedAt,error:result?.error || 'No se pudo consultar esta búsqueda.'};
+        failed++;
         continue;
       }
-      const found = findWishlistProduct(result.items, w);
-      const previous = [...(w.history || [])].reverse().find(h => found && h.shop === found.shop && h.shop === (h.shop || ''));
-      let change = null;
-      if (found && previous && Number(previous.price) !== Number(found.price)) {
-        const amount = Math.abs(Number(previous.price) - Number(found.price));
-        change = {
-          direction: found.price < previous.price ? 'down' : 'up',
-          amount,
-          percent: Math.round(amount / Math.max(1, Number(previous.price)) * 100),
-          shop:found.shop,
-        };
+      const found = findWishlistProduct(result.items,item);
+      if (!found) {
+        item.latest = {...(item.latest || {}),checkedAt,missing:true,error:''};
+        missing++;
+        continue;
       }
-      const basePrice = found?.price || Number(w.price) || 0;
-      const sameProduct = found ? result.items
-        .filter(p => p.price < basePrice && p.shop !== found.shop && sameProductModel(found, p))
-        .sort((a,b) => a.price - b.price).slice(0,3).map(wishSnapshot) : [];
-      const history = Array.isArray(w.history) ? w.history : [];
-      if (found) history.push({price:Number(found.price), shop:String(found.shop), url:safeProductUrl(found.url), at:checkedAt});
-      w.history = history.slice(-12);
-      w.latest = {
+      const priceState = analyzeWishlistPrice(item,found,checkedAt);
+      const offers = findComparableOffers(result.items,found,4).map(wishSnapshot);
+      item.history = priceState.history;
+      item.latest = {
+        ...(item.latest || {}),
         checkedAt,
-        matched:found ? wishSnapshot(found) : null,
-        sameProduct,
-        missing:!found,
+        matched:wishSnapshot(found),
+        offers,
+        lowestPrice:priceState.lowestPrice,
+        targetReached:priceState.targetReached,
+        missing:false,
         error:'',
-        change,
+        change:priceState.change,
       };
+      updated++;
     }
-    const synced = sess ? await persistWishlistItems(items) : false;
+
+    if (sess) {
+      const synced = await persistWishlistItems(items);
+      if (!synced) throw new Error('La sesión expiró. Volvé a iniciar sesión para sincronizar.');
+    }
     await saveProfile();
-    drawWishlist(synced
-      ? 'Actualización terminada. La lista y el historial quedaron sincronizados con tu cuenta.'
-      : 'Actualización terminada en este dispositivo. Iniciá sesión para sincronizar y recibir avisos automáticos.');
-  } catch (e) {
-    drawWishlist('No se pudo completar la actualización: ' + String(e?.message || e));
+    finalMessage = updated + ' producto(s) actualizado(s)' +
+      (missing ? ' · ' + missing + ' sin coincidencia' : '') +
+      (failed ? ' · ' + failed + ' con error de consulta' : '') + '.';
+  } catch (error) {
+    finalMessage = 'No se pudo completar la actualización: ' + String(error?.message || error);
   } finally {
-    button.disabled = false;
+    items.forEach(item => wishlistBusyIds.delete(String(item.id)));
+    wishlistRefreshingAll = false;
+    drawWishlist(finalMessage);
     drawProd(true);
   }
 };
@@ -919,19 +1013,95 @@ $('pres').addEventListener('click', async e => {
   const p = prod.items[Number(button.dataset.wishAdd)];
   await addProductToWishlist(p);
 });
+$('productWishlist').addEventListener('submit', async e => {
+  const form = e.target.closest('[data-wish-target]');
+  if (!form) return;
+  e.preventDefault();
+  const item = profile.productWishlist.find(w => String(w.id) === String(form.dataset.wishTarget));
+  const input = form.querySelector('input[name="targetPrice"]');
+  const value = Number(input?.value);
+  if (!item || !input || !Number.isFinite(value) || value <= 0) {
+    toast('Ingresá un precio objetivo mayor que cero.');
+    input?.focus();
+    return;
+  }
+  const previous = {
+    targetPrice:item.targetPrice,
+    targetAlertedFor:item.targetAlertedFor,
+    targetAlertedAt:item.targetAlertedAt,
+  };
+  const changed = Number(item.targetPrice) !== value;
+  item.targetPrice = value;
+  if (changed) {
+    delete item.targetAlertedFor;
+    delete item.targetAlertedAt;
+  }
+  try {
+    if (sess) {
+      const synced = await persistWishlistItem(item);
+      if (!synced) throw new Error('La sesión expiró. Volvé a iniciar sesión.');
+    }
+    await saveProfile();
+    drawWishlist(sess
+      ? 'Precio objetivo de ' + item.name + ' guardado y sincronizado.'
+      : 'Precio objetivo de ' + item.name + ' guardado en este dispositivo.');
+    toast('Precio objetivo guardado');
+  } catch (error) {
+    delete item.targetPrice;
+    delete item.targetAlertedFor;
+    delete item.targetAlertedAt;
+    Object.assign(item,previous);
+    drawWishlist('No se pudo guardar el objetivo: ' + String(error?.message || error));
+    toast('No se pudo guardar el objetivo');
+  }
+});
 $('productWishlist').addEventListener('click', async e => {
+  const refreshButton = e.target.closest('[data-wish-refresh]');
+  if (refreshButton) return refreshProductWishlist([refreshButton.dataset.wishRefresh]);
+
+  const clearTarget = e.target.closest('[data-wish-target-clear]');
+  if (clearTarget) {
+    const item = profile.productWishlist.find(w => String(w.id) === String(clearTarget.dataset.wishTargetClear));
+    if (!item) return;
+    const previous = {targetPrice:item.targetPrice,targetAlertedFor:item.targetAlertedFor,targetAlertedAt:item.targetAlertedAt};
+    delete item.targetPrice; delete item.targetAlertedFor; delete item.targetAlertedAt;
+    try {
+      if (sess) {
+        const synced = await persistWishlistItem(item);
+        if (!synced) throw new Error('La sesión expiró. Volvé a iniciar sesión.');
+      }
+      await saveProfile();
+      drawWishlist('Precio objetivo eliminado.');
+    } catch (error) {
+      Object.assign(item,previous);
+      drawWishlist('No se pudo eliminar el objetivo: ' + String(error?.message || error));
+    }
+    return;
+  }
+
   const button = e.target.closest('[data-wish-remove]');
   if (!button) return;
   try {
     const synced = await deleteWishlistItem(button.dataset.wishRemove);
     if (sess && !synced) throw new Error('La sesión expiró. Volvé a iniciar sesión.');
-  } catch (e) { toast('No se pudo eliminar en la nube: ' + String(e?.message || e)); return; }
-  profile.productWishlist = profile.productWishlist.filter(w => w.id !== button.dataset.wishRemove);
+  } catch (error) {
+    toast('No se pudo eliminar en la nube: ' + String(error?.message || error));
+    return;
+  }
+  profile.productWishlist = profile.productWishlist.filter(w => String(w.id) !== String(button.dataset.wishRemove));
   await saveProfile();
   drawWishlist('Producto eliminado de tu wishlist.');
   drawProd(true);
 });
-$('wishRefresh').onclick = refreshProductWishlist;
+$('wishRefresh').onclick = () => refreshProductWishlist();
+$('wishSearch').oninput = () => { wishlistView.search = $('wishSearch').value.trim().toLocaleLowerCase('es'); drawWishlist(); };
+$('wishFilter').onchange = () => { wishlistView.filter = $('wishFilter').value; drawWishlist(); };
+$('wishSort').onchange = () => { wishlistView.sort = $('wishSort').value; drawWishlist(); };
+$('wishClear').onclick = () => {
+  wishlistView.search=''; wishlistView.filter='all'; wishlistView.sort='recent';
+  $('wishSearch').value=''; $('wishFilter').value='all'; $('wishSort').value='recent';
+  drawWishlist();
+};
 drawWishlist();
 let realtimeClient = null;
 const startWishlistRealtime = async () => {

@@ -7,6 +7,7 @@ on:
       - 'supabase/functions/notify/**'
       - 'app.js'
       - 'scripts/product-matching.test.mjs'
+      - 'scripts/wishlist-tracking.test.mjs'
       - 'scripts/product-filters.mjs'
       - 'scripts/product-filters.test.mjs'
       - 'scripts/store-follow.test.mjs'
@@ -26,6 +27,8 @@ jobs:
         run: node --test scripts/product-filters.test.mjs
       - name: Test same-model matching across product types
         run: node --test scripts/product-matching.test.mjs
+      - name: Test wishlist price tracking and target alerts
+        run: node --test scripts/wishlist-tracking.test.mjs
       - name: Check live same-model matches across stores
         run: node scripts/product-matching.live-smoke.mjs
       - name: Check live Tupi and Bristol results

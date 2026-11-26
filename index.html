@@ -142,6 +142,32 @@
    <div class="store-follow-list" id="storeFollowList"></div>
   </section>
 
+  <section class="wish-section" id="wishSection" aria-labelledby="wishTitle">
+   <div class="wish-heading">
+    <div class="wish-heading-copy">
+     <h2 id="wishTitle">Mi wishlist <span id="wishCount" class="wish-count">0</span></h2>
+     <p>Seguí precios, compará tiendas y fijá el valor al que querés comprar.</p>
+    </div>
+    <button class="btn sm" id="wishRefresh" type="button">Actualizar todos</button>
+   </div>
+   <div class="wish-stats" aria-label="Resumen de wishlist">
+    <div class="wish-stat"><small>En seguimiento</small><strong id="wishStatTotal">0</strong></div>
+    <div class="wish-stat"><small>Bajaron</small><strong id="wishStatDown">0</strong></div>
+    <div class="wish-stat"><small>Precio objetivo</small><strong id="wishStatTarget">0</strong></div>
+    <div class="wish-stat"><small>Revisar</small><strong id="wishStatReview">0</strong></div>
+   </div>
+   <div class="wish-toolbar" id="wishTools" hidden>
+    <label class="wish-search"><svg class="ic"><use href="#i-search"/></svg><input id="wishSearch" type="search" placeholder="Buscar producto o tienda" aria-label="Buscar en wishlist"></label>
+    <label class="sel">Estado <select id="wishFilter"><option value="all">Todos</option><option value="down">Bajaron</option><option value="target">Precio objetivo</option><option value="up">Subieron</option><option value="pending">Sin revisar</option><option value="missing">No encontrados</option><option value="error">Con errores</option></select></label>
+    <label class="sel">Orden <select id="wishSort"><option value="recent">Más recientes</option><option value="price">Menor precio</option><option value="drop">Mayor bajada</option><option value="name">Nombre</option><option value="checked">Última revisión</option></select></label>
+    <button class="chip" id="wishClear" type="button">Limpiar</button>
+   </div>
+   <p class="mut wish-statusline" id="wishStatus" aria-live="polite">Guardá un producto desde los resultados para empezar a seguirlo.</p>
+   <p class="mut wish-alert-hint" id="wishAlertHint"></p>
+   <div class="wish-empty" id="wishEmpty"><strong>Tu lista está vacía</strong><p>Buscá un producto y pulsá «Seguir precio». Después podrás comparar tiendas y fijar un precio objetivo.</p></div>
+   <div class="wish-list" id="productWishlist"></div>
+  </section>
+
   <div class="hero card-hero prod-hero">
    <h1>¿Cuánto cuesta?</h1>
    <form id="pq" class="search big" role="search"><svg class="ic"><use href="#i-search"/></svg><input name="q" placeholder="Ej: tv 55" autocomplete="off" aria-label="Producto"></form>
@@ -157,11 +183,6 @@
   </div>
   <div class="pgrid" id="pres" hidden></div>
   <div class="shops" id="plinks"></div>
-  <section class="wish-section" id="wishSection" hidden aria-labelledby="wishTitle">
-   <div class="row-head wish-heading"><h2 id="wishTitle">Mi wishlist <span id="wishCount" class="wish-count">0</span></h2><button class="btn sm" id="wishRefresh" type="button">Actualizar precios</button></div>
-   <p class="mut wish-intro" id="wishStatus">Guardá productos para seguir sus precios y recibir avisos cuando bajen.</p>
-   <div class="wish-list" id="productWishlist"></div>
-  </section>
  </section>
 </main>
 
