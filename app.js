@@ -742,11 +742,10 @@ const wishCard = w => {
     '<div class="wish-card-head">' +
       (href ? '<a class="wish-thumb' + (w.img ? '' : ' wish-placeholder') + '" href="' + esc(href) + '" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">' + thumb + '</a>'
         : '<span class="wish-thumb' + (w.img ? '' : ' wish-placeholder') + '" aria-hidden="true">' + thumb + '</span>') +
-      '<div class="wish-card-title">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(w.name) + '</a>' : '<b>' + esc(w.name) + '</b>') +
-        '<small>' + esc(shown.shop || w.shop) + '</small></div>' +
+      '<div class="wish-card-title">' + (href ? '<a href="' + esc(href) + '" target="_blank" rel="noopener">' + esc(w.name) + '</a>' : '<b>' + esc(w.name) + '</b>') + '</div>' +
     '</div>' +
-    '<div class="wish-current"><strong>' + wishPrice(shown.price) + '</strong>' +
-      (current && current.old > current.price ? '<small><s>' + wishPrice(current.old) + '</s></small>' : '') + '</div>' +
+    '<div class="wish-current"><small class="wish-shop">' + esc(shown.shop || w.shop) + '</small><span class="wish-price"><strong>' + wishPrice(shown.price) + '</strong>' +
+      (current && current.old > current.price ? '<small><s>' + wishPrice(current.old) + '</s></small>' : '') + '</span></div>' +
     (signals ? '<div class="wish-signals">' + signals + '</div>' : '') +
     '<div class="wish-foot"><p class="mut wish-status">' + esc(status) + '</p>' +
       '<button class="chip wish-remove" type="button" data-wish-remove="' + esc(w.id) + '" aria-label="Quitar ' + esc(w.name) + ' de la wishlist">Quitar</button></div>' +
@@ -798,7 +797,7 @@ const prodCard = p => {
   const tracked = isProductWished(p);
   const href = safeProductUrl(p.url);
   return '<article class="pcard' + (tracked ? ' is-wished' : '') + '">' +
-    '<a class="pcard-link surf" href="' + esc(href || '#') + '" target="_blank" rel="noopener">' +
+    '<a class="pcard-link" href="' + esc(href || '#') + '" target="_blank" rel="noopener">' +
       '<span class="pph">' + im(p.img, p.name, 'referrerpolicy="no-referrer"') + '</span>' +
       '<span class="pname">' + esc(p.name) + '</span>' +
       priceBox({pyg:p.price, was:p.old > p.price ? p.old : null, off}) +
