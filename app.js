@@ -1,6 +1,7 @@
 import { findWishlistMatch, isSameProductModel } from './supabase/functions/notify/product-matching.mjs?v=20261120-4';
 import { analyzeWishlistPrice, findComparableOffers } from './supabase/functions/notify/wishlist-tracking.mjs?v=20261126-1';
 import { categoryOfProduct, filterProducts } from './scripts/product-filters.mjs?v=20261125-2';
+import { normalizePromoSearchText, searchPromos } from './scripts/promo-search.mjs?v=20261127-1';
 const REDEEM = 'https://www.gameloft.com/redeem/asphalt-legends?playerId=u-79g1efe';
 const PROMOS = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/promos.json';
 // Si el CDN no carga, la página funciona igual sin animaciones
@@ -529,16 +530,38 @@ const loadWl = async () => {
 };
 loadWl();
 
-// Tarjetas: busca en PromoScraper (se actualiza a diario)
+// Tarjetas: consume PromoScraper; refresco automático cada 3 h y manual bajo demanda.
+const PROMO_CACHE_TTL = 3 * 36e5;
 let promos;
-const getPromos = async () => {
-  if (promos) return promos;
-  const hit = store_ttl('panel.promos', 12 * 36e5);
-  if (hit) return promos = hit;
-  const d = await fetch(PROMOS).then(r => r.json()).catch(() => undefined);
-  if (d?.length) store.set('panel.promos', { t: Date.now(), data: d });
-  else promos = store.get('panel.promos', null)?.data;
-  return promos ??= d;
+let promoFetchFresh = false;
+const getPromos = async ({ force = false } = {}) => {
+  if (promos && !force) return promos;
+  const hit = !force && store_ttl('panel.promos', PROMO_CACHE_TTL);
+  if (hit) {
+    promos = hit;
+    promoFetchFresh = false;
+    return promos;
+  }
+
+  const cached = store.get('panel.promos', null);
+  try {
+    const response = await fetch(PROMOS, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error(`PromoScraper HTTP ${response.status}`);
+    const data = await response.json();
+    if (!Array.isArray(data) || !data.length) throw new Error('PromoScraper devolvió una lista vacía o inválida.');
+
+    promos = data;
+    promoFetchFresh = true;
+    store.set('panel.promos', { t: Date.now(), data });
+  } catch (error) {
+    console.warn('No se pudieron actualizar las promociones:', error);
+    promos = Array.isArray(cached?.data) ? cached.data : undefined;
+    promoFetchFresh = false;
+  }
+  return promos;
 };
 // Shopping donde está el local (listas de locales de cada shopping)
 const malls = (sh.items || []).map(m => ({ name: m.name, set: new Set(m.stores.map(norm)) }));
@@ -553,13 +576,13 @@ const promoCard = p => `<article class="promo">
 </div>
     <span class="pct">${p.discount_percent ? p.discount_percent + '%' : ''}</span>${hideBtn('p' + p.id, p.title)}
     <span class="src">${A(p.href || 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/#p=' + encodeURIComponent(p.id || ''), 'Bases ' + esc(p.bankShort))}${A('https://www.google.com/maps/search/' + encodeURIComponent(p.title + ' ' + (mall(p.title) || 'Paraguay')), icon('pin') + 'Mapa', 'map')}</span></article>`;
-let lastQ = '', hits = [], bankF = '', typeF = 'desc', mallF = '';
+let lastQ = '', hits = [], bankF = '', typeF = 'desc', mallF = '', lastStoreName = '';
 
 profile.followedStores = Array.isArray(profile.followedStores) ? profile.followedStores : [];
 const normalizeStore = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const followedStoreFor = name => profile.followedStores.find(item => normalizeStore(item.name) === normalizeStore(name));
 const drawStoreFollowButton = () => {
-  const name = lastQ.trim();
+  const name = lastStoreName;
   const followed = name && followedStoreFor(name);
   $('storeFollowControls').hidden = !name;
   $('storeFollowDuration').closest('.sel').hidden = !!followed;
@@ -594,7 +617,7 @@ const drawFollowedStores = () => {
   drawStoreFollowButton();
 };
 $('storeFollowAdd').onclick = async () => {
-  const name = lastQ.trim();
+  const name = lastStoreName;
   if (!name) return;
   const followed = followedStoreFor(name);
   if (followed) {
@@ -645,26 +668,27 @@ const drawPromos = () => {
   paged($('promos'), list.filter(p => !bankF || p.bankShort === bankF), promoCard, empty(`Sin promos para «${esc(lastQ)}».`));
 };
 const search = async q => {
-  q = q.trim(); if (!q) return; lastQ = q;
+  q = q.trim(); if (!q) return;
+  lastQ = q;
+  lastStoreName = '';
   drawStoreFollowButton();
-  const ql = q.toLowerCase();
   document.querySelector('#tq input').value = q;
   $('tjt').href = 'https://tarjetea.com.py/stores?q=' + encodeURIComponent(q);
   $('promoPyLink').href = 'https://yosoymitxel.github.io/promociones-tarjetas-bancos-paraguay-py/?q=' + encodeURIComponent(q);
   $('promos').innerHTML = '<div class="skel"></div><div class="skel"></div>';
   $('myBanks').innerHTML = '';
   await getPromos();
-  if (!promos) { $('promos').innerHTML = empty('No se pudo leer PromoScraper. Probá en Tarjeteá.'); promos = undefined; return; }
-  // Primero por nombre del comercio; la descripción solo si no hay ninguno
-  const byTitle = promos.filter(p => p.title?.toLowerCase().includes(ql));
-  const mine = new Set(profile.cards || []);
-  const hit = (byTitle.length ? byTitle : promos.filter(p => p.desc?.toLowerCase().includes(ql)))
-    .sort((a, b) => mine.has(b.bankShort) - mine.has(a.bankShort) || (b.discount_percent || 0) - (a.discount_percent || 0));
-  hits = hit; bankF = ''; mallF = '';
+  if (!promos) { $('promos').innerHTML = empty('No se pudo leer PromoScraper. Probá en Tarjeteá.'); return; }
+
+  // Busca por comercio, banco, tarjeta, descripción, categoría, vigencia y cuotas.
+  hits = searchPromos(promos, q, profile.cards || []);
+  const normalizedQuery = normalizePromoSearchText(q);
+  lastStoreName = promos.find(p => normalizePromoSearchText(p.title) === normalizedQuery)?.title || '';
+  bankF = ''; mallF = '';
   drawPromos();
   drawFollowedStores();
   reveal('#promos .promo');
-  recent.splice(0, recent.length, q, ...recent.filter(r => r.toLowerCase() !== ql).slice(0, 7));
+  recent.splice(0, recent.length, q, ...recent.filter(r => normalizePromoSearchText(r) !== normalizedQuery).slice(0, 7));
   store.set('recent', recent); drawRecent();
 };
 // Mis tarjetas (perfil): sus promos van primero
@@ -687,6 +711,25 @@ $('myBanks').onclick = e => {
 $('pType').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; typeF = b.dataset.t; bankF = ''; drawPromos(); };
 $('pMall').onclick = e => { const b = e.target.closest('[data-m]'); if (!b) return; mallF = b.dataset.m; bankF = ''; drawPromos(); };
 $('tq').onsubmit = e => { e.preventDefault(); search(e.target.q.value); };
+$('refreshPromos').onclick = async () => {
+  const button = $('refreshPromos');
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Actualizando…';
+  try {
+    await getPromos({ force: true });
+    if (!promos) {
+      toast('No se pudieron cargar las promociones.');
+      return;
+    }
+    if (lastQ) await search(lastQ);
+    else drawBanks();
+    toast(promoFetchFresh ? 'Promociones actualizadas.' : 'Sin conexión; se conservan los datos guardados.');
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+};
 $('recent').onclick = e => e.target.dataset.q && search(e.target.dataset.q);
 drawRecent();
 
